@@ -158,7 +158,7 @@ MeshHood/
 │   ├── GeoLocator.kt       # GPS → rolling ZIP
 │   ├── MessageChannel.kt   # channel + geo envelope fields
 │   └── MainActivity.kt     # Area ▼, Chats inbox, profile
-├── tools/                  # Python BLE protocol tests
+├── tools/                  # Python BLE tests + tools/install.cmd
 ├── docs/ARCHITECTURE.md
 ├── SECURITY.md
 └── LICENSE
