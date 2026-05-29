@@ -4,11 +4,11 @@ plugins {
 }
 
 android {
-    namespace = "com.example.myphone"
+    namespace = "com.meshhood"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.example.myphone"
+        applicationId = "com.meshhood"
         minSdk = 26
         targetSdk = 35
         versionCode = 1

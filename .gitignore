@@ -7,17 +7,19 @@
 .externalNativeBuild
 .cxx
 /captures
+.kotlin/
 
-# IDE (keep team-friendly; drop machine-specific noise)
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
+# IDE — machine-specific
+.idea/
+*.iml
 
 # Python PC test tools
 tools/__pycache__/
 tools/*.pyc
 tools/*.png
 tools/ui*.xml
+
+# Build outputs
+*.apk
+*.aab
+*.dex

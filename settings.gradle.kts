@@ -19,5 +19,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "My phone"
+rootProject.name = "MeshHood"
 include(":app")
