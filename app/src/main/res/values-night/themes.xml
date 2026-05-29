@@ -1,0 +1,12 @@
+<resources>
+    <!-- Same dark emergency palette in night mode — optimized for low-light SOS use. -->
+    <style name="Theme.MyPhone" parent="Theme.MaterialComponents.NoActionBar">
+        <item name="colorPrimary">@color/mesh_primary</item>
+        <item name="colorPrimaryVariant">@color/mesh_primary_container</item>
+        <item name="colorOnPrimary">@color/white</item>
+        <item name="colorSecondary">@color/mesh_teal</item>
+        <item name="android:windowBackground">@color/mesh_bg</item>
+        <item name="android:statusBarColor">@color/mesh_bg</item>
+        <item name="android:navigationBarColor">@color/mesh_surface</item>
+    </style>
+</resources>

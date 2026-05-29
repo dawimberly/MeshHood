@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp"
+    android:height="108dp"
+    android:viewportWidth="108"
+    android:viewportHeight="108">
+
+    <!-- Mesh links -->
+    <path android:strokeColor="#5EEAD4" android:strokeWidth="2.4" android:pathData="M54,54 L54,30" />
+    <path android:strokeColor="#5EEAD4" android:strokeWidth="2.4" android:pathData="M54,54 L30,46" />
+    <path android:strokeColor="#5EEAD4" android:strokeWidth="2.4" android:pathData="M54,54 L80,42" />
+    <path android:strokeColor="#5EEAD4" android:strokeWidth="2.4" android:pathData="M54,54 L34,74" />
+    <path android:strokeColor="#5EEAD4" android:strokeWidth="2.4" android:pathData="M54,54 L76,74" />
+    <path android:strokeColor="#2DD4BF" android:strokeWidth="1.8" android:pathData="M54,30 L80,42" />
+    <path android:strokeColor="#2DD4BF" android:strokeWidth="1.8" android:pathData="M80,42 L76,74" />
+    <path android:strokeColor="#2DD4BF" android:strokeWidth="1.8" android:pathData="M34,74 L30,46" />
+
+    <!-- Outer nodes -->
+    <path android:fillColor="#2DD4BF" android:pathData="M54,30 m -5,0 a 5,5 0 1,0 10,0 a 5,5 0 1,0 -10,0 z" />
+    <path android:fillColor="#2DD4BF" android:pathData="M30,46 m -5,0 a 5,5 0 1,0 10,0 a 5,5 0 1,0 -10,0 z" />
+    <path android:fillColor="#2DD4BF" android:pathData="M80,42 m -5,0 a 5,5 0 1,0 10,0 a 5,5 0 1,0 -10,0 z" />
+    <path android:fillColor="#2DD4BF" android:pathData="M34,74 m -5,0 a 5,5 0 1,0 10,0 a 5,5 0 1,0 -10,0 z" />
+    <path android:fillColor="#2DD4BF" android:pathData="M76,74 m -5,0 a 5,5 0 1,0 10,0 a 5,5 0 1,0 -10,0 z" />
+
+    <!-- Center node (you) -->
+    <path android:fillColor="#FACC15" android:pathData="M54,54 m -8.5,0 a 8.5,8.5 0 1,0 17,0 a 8.5,8.5 0 1,0 -17,0 z" />
+    <path android:fillColor="#0B1220" android:pathData="M54,54 m -3.5,0 a 3.5,3.5 0 1,0 7,0 a 3.5,3.5 0 1,0 -7,0 z" />
+</vector>

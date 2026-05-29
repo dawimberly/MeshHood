@@ -1,0 +1,17 @@
+<resources>
+    <string name="app_name">MeshHood</string>
+    <string name="menu">More options</string>
+    <string name="send">Send message</string>
+    <string name="feed_title">Neighborhood</string>
+    <string name="feed_title_group">%1$s</string>
+    <string name="feed_scope_everyone">Everyone</string>
+    <string name="feed_encrypted">Encrypted</string>
+    <string name="feed_empty">No messages yet.\nYour mesh is listening for neighbors.</string>
+    <string name="feed_empty_group">No messages in this group yet.\nSay hello or check pinned posts.</string>
+    <string name="message_hint">Message</string>
+    <string name="recipient_default">Everyone</string>
+    <string name="coordinator">Status</string>
+    <string name="emergency_label">Emergency — Need Help</string>
+    <string name="emergency_subtitle">Alerts nearby neighbors and shares your ICE card</string>
+    <string name="status_connecting">Connecting mesh…</string>
+</resources>

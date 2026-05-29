@@ -1,0 +1,37 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="black">#FF000000</color>
+    <color name="white">#FFFFFFFF</color>
+
+    <!-- Surfaces -->
+    <color name="mesh_bg">#0F1419</color>
+    <color name="mesh_surface">#161D27</color>
+    <color name="mesh_surface_elevated">#1E2733</color>
+    <color name="mesh_card">#243041</color>
+    <color name="mesh_stroke">#2E3A4D</color>
+
+    <!-- Text -->
+    <color name="mesh_on_surface">#E8EEF4</color>
+    <color name="mesh_on_surface_variant">#8B9CB3</color>
+    <color name="mesh_text_dim">#6B7C93</color>
+
+    <!-- Accent -->
+    <color name="mesh_primary">#38BDF8</color>
+    <color name="mesh_primary_container">#0C4A6E</color>
+    <color name="mesh_teal">#2DD4BF</color>
+    <color name="mesh_teal_light">#5EEAD4</color>
+    <color name="mesh_amber">#FBBF24</color>
+    <color name="mesh_success">#34D399</color>
+
+    <!-- Emergency -->
+    <color name="mesh_emergency">#EF4444</color>
+    <color name="mesh_emergency_dark">#DC2626</color>
+    <color name="mesh_emergency_glow">#33EF4444</color>
+
+    <!-- Legacy aliases -->
+    <color name="purple_200">#FFBB86FC</color>
+    <color name="purple_500">#FF6200EE</color>
+    <color name="purple_700">#FF3700B3</color>
+    <color name="teal_200">#FF03DAC5</color>
+    <color name="teal_700">#FF018786</color>
+</resources>

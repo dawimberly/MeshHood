@@ -1,0 +1,23 @@
+*.iml
+.gradle
+/build
+/app/build
+/local.properties
+.DS_Store
+.externalNativeBuild
+.cxx
+/captures
+
+# IDE (keep team-friendly; drop machine-specific noise)
+/.idea/caches
+/.idea/libraries
+/.idea/modules.xml
+/.idea/workspace.xml
+/.idea/navEditor.xml
+/.idea/assetWizardSettings.xml
+
+# Python PC test tools
+tools/__pycache__/
+tools/*.pyc
+tools/*.png
+tools/ui*.xml
