@@ -62,11 +62,27 @@ Phone A ←BLE/WiFi/LAN→ Phone B ←→ Phone C
 
 **Requirements:** Android 8+ (API 26), Bluetooth, location permission (required for BLE scan and rolling ZIP on Android).
 
+**PowerShell** — you must be in the `MeshHood` folder, or use the helper script:
+
+```powershell
+# From AndroidStudioProjects (parent folder):
+.\MeshHood\install.cmd
+
+# Or from inside the project:
+cd MeshHood
+.\install.ps1
+# double-click install.cmd works too
+```
+
+**Git Bash / macOS / Linux:**
+
 ```bash
 git clone https://github.com/dawimberly/MeshHood.git
 cd MeshHood
 ./gradlew installDebug
 ```
+
+> **Common mistake:** `.\gradlew` only works inside `MeshHood`, not in `AndroidStudioProjects`.
 
 1. Open MeshHood, grant permissions, and complete profile setup.
 2. **Set my area** (long-press feed or **Area ▼**) — pick your state; ZIP fills from location.
