@@ -188,9 +188,9 @@ async def run_sim(auto: bool, chat: bool) -> None:
 
         await wait_enter(
             "STEP 1 — On your PHONE:\n"
-            "  • Check the feed for Maria's message\n"
-            "  • Tap ☰ Menu → 👥 Neighbor directory → Maria (see her profile)\n"
-            "  • Switch feed tab to Everyone if needed",
+            "  • Check Area feed for Maria's message\n"
+            "  • Long-press feed → Directory → Maria (see her profile)\n"
+            "  • Area ▼ → pick Everyone or your ZIP if needed",
             auto,
         )
 
@@ -219,9 +219,9 @@ async def run_sim(auto: bool, chat: bool) -> None:
 
         await wait_enter(
             "STEP 3 — On your PHONE:\n"
-            "  • Check feed for Maria's reply\n"
-            "  • If you set up a profile name, try To: Maria → send a direct message\n"
-            "  • Optional: ☰ Menu → 🙏 Thank a neighbor → Maria",
+            "  • Chats → Maria for her private reply (or Area if it was a broadcast)\n"
+            "  • Send to: Maria → try a direct message back\n"
+            "  • Optional: long-press feed → Send thanks → Maria",
             auto,
         )
 
@@ -255,16 +255,28 @@ async def run_sim(auto: bool, chat: bool) -> None:
 
         if chat:
             print("CHAT MODE — Maria is listening. Type on phone; replies show here.")
-            print("On PC: type a line + Enter to broadcast as Maria. /quit to exit.\n")
+            print("On PC: type a line + Enter to broadcast as Maria. /quit or Ctrl+C to exit.\n")
             on_phone_message._quiet = False
-            while True:
-                line = await asyncio.get_event_loop().run_in_executor(None, sys.stdin.readline)
-                line = line.strip()
-                if line == "/quit":
-                    break
-                if line:
-                    await client.write_gatt_char(char, maria.broadcast(line), response=True)
-                    print(f"  → Maria (broadcast): {line}", flush=True)
+            try:
+                while True:
+                    try:
+                        line = await asyncio.get_event_loop().run_in_executor(
+                            None, sys.stdin.readline
+                        )
+                    except asyncio.CancelledError:
+                        break
+                    if not line:
+                        continue
+                    line = line.strip()
+                    if line == "/quit":
+                        break
+                    if line:
+                        await client.write_gatt_char(
+                            char, maria.broadcast(line), response=True
+                        )
+                        print(f"  → Maria (broadcast): {line}", flush=True)
+            except (KeyboardInterrupt, asyncio.CancelledError):
+                print("\nChat mode stopped.", flush=True)
 
         await client.stop_notify(char)
 
@@ -274,7 +286,10 @@ def main() -> None:
     parser.add_argument("--auto", action="store_true", help="Run without pauses")
     parser.add_argument("--chat", action="store_true", help="Stay in Maria chat after sim")
     args = parser.parse_args()
-    asyncio.run(run_sim(auto=args.auto, chat=args.chat or (not args.auto)))
+    try:
+        asyncio.run(run_sim(auto=args.auto, chat=args.chat or (not args.auto)))
+    except KeyboardInterrupt:
+        print("\nStopped.", flush=True)
 
 
 if __name__ == "__main__":

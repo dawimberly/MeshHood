@@ -58,20 +58,49 @@ Phone A ←BLE/WiFi/LAN→ Phone B ←→ Phone C
 
 ## Quick start
 
+### Windows PC (clone from GitHub)
+
+Anyone with a Windows PC + USB Android phone can use this repo:
+
+```powershell
+git clone https://github.com/dawimberly/MeshHood.git
+cd MeshHood
+
+# Install app on phone (USB debugging on, MeshHood will open)
+.\install.cmd
+
+# Optional: simulate Maria + Rosa over BLE (phone running MeshHood)
+cd tools
+pip install -r requirements.txt
+python pc_two_phone_sim.py
+```
+
+| File | Purpose |
+|------|---------|
+| `install.ps1` / `install.cmd` | Build + install APK; finds Android Studio Java |
+| `tools/install.cmd` | Same install when your shell is in `tools\` |
+| `tools/pc_two_phone_sim.py` | Guided 2-phone BLE sim (Maria + Rosa) |
+
 ### Android
 
 **Requirements:** Android 8+ (API 26), Bluetooth, location permission (required for BLE scan and rolling ZIP on Android).
 
-**PowerShell** — you must be in the `MeshHood` folder, or use the helper script:
+**PowerShell** — run install from the **`MeshHood`** folder (not `tools`):
 
 ```powershell
-# From AndroidStudioProjects (parent folder):
-.\MeshHood\install.cmd
+# You are here:  PS ...\AndroidStudioProjects\MeshHood>
+.\install.cmd
 
-# Or from inside the project:
+# You are here:  PS ...\AndroidStudioProjects\MeshHood\tools>
+..\install.cmd
+
+# You are here:  PS ...\AndroidStudioProjects>
+.\MeshHood\install.cmd
+```
+
+```powershell
 cd MeshHood
 .\install.ps1
-# double-click install.cmd works too
 ```
 
 **Git Bash / macOS / Linux:**
@@ -82,7 +111,7 @@ cd MeshHood
 ./gradlew installDebug
 ```
 
-> **Common mistake:** `.\gradlew` only works inside `MeshHood`, not in `AndroidStudioProjects`.
+> **Common mistake:** `gradlew` and `install.cmd` live in **`MeshHood`**, not in `MeshHood\tools`.
 
 1. Open MeshHood, grant permissions, and complete profile setup.
 2. **Set my area** (long-press feed or **Area ▼**) — pick your state; ZIP fills from location.
@@ -122,6 +151,7 @@ Persistent simulated identities live in `tools/sim_identities/` (gitignored).
 
 ```
 MeshHood/
+├── install.ps1 / install.cmd   # Windows: build + install on phone
 ├── app/src/main/java/com/meshhood/
 │   ├── MeshService.kt      # mesh core, feed scopes, protocol
 │   ├── MeshZone.kt         # geographic hierarchy
