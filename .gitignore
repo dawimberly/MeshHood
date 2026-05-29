@@ -18,6 +18,7 @@ tools/__pycache__/
 tools/*.pyc
 tools/*.png
 tools/ui*.xml
+tools/sim_identities/
 
 # Build outputs
 *.apk

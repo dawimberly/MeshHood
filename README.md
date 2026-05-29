@@ -23,25 +23,44 @@ Disasters knock out centralized infrastructure first. MeshHood explores what a *
 | **Multi-transport** | BLE + WiFi Direct + LAN run in parallel for best reach |
 | **Multi-hop relay** | Messages hop across phones (TTL + dedup) to extend range |
 | **Private DMs** | X25519 per-pair encryption; relays cannot read content |
+| **Chats inbox** | Private threads in **Chats** — separate from the public **Area** feed |
+| **Area hierarchy** | Nation → national region → state → region → **rolling ZIP** → local |
+| **Smart default feed** | Opens on your most specific locality (ZIP when location resolves) |
 | **Signed trust** | Ed25519 profiles, kudos, group admin actions |
-| **Groups** | HOA/block crews with admin verify + pin (no speech moderation) |
-| **Feed channels** | Toggle **Everyone** vs per-group views |
+| **Groups** | Community crews with admin verify + pin (no speech moderation) |
 | **Resource brain** | Rule-based coordinator + optional on-device Gemma LLM |
 
-## Architecture
+## UI: Area vs Chats
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for message types, transport diagram, and protocol overview.
+| Control | What it is |
+|---------|------------|
+| **Area ▼** | Public feed — Everyone, geographic levels, and groups |
+| **Chats** | Private direct-message inbox (most recent first) |
+
+Public broadcasts stay in **Area**. DMs never appear in the Area dropdown.
+
+### Geographic area
+
+- **State** — saved on your profile (US state dropdown).
+- **ZIP** — **rolling from GPS** (same location permission as BLE scan); updates as you move.
+- **Area ▼** lists localities **most specific first** (ZIP/local at top, Nation and Everyone below).
+- Public messages carry a **`channel`** tag on the wire (e.g. `zone:postal:87110`) plus an optional **`geo`** snapshot. Relays still flood everything; each phone filters and sorts locally.
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the comms vs geo split.
+
+## Architecture
 
 ```
 Phone A ←BLE/WiFi/LAN→ Phone B ←→ Phone C
          encrypted JSON envelopes, relay by id+ttl
+         channel = viewer hint; geo = sender snapshot (not routing)
 ```
 
 ## Quick start
 
 ### Android
 
-**Requirements:** Android 8+ (API 26), Bluetooth, location permission (required for BLE scan on Android).
+**Requirements:** Android 8+ (API 26), Bluetooth, location permission (required for BLE scan and rolling ZIP on Android).
 
 ```bash
 git clone https://github.com/dawimberly/MeshHood.git
@@ -49,7 +68,11 @@ cd MeshHood
 ./gradlew installDebug
 ```
 
-Open MeshHood on your phone, grant permissions, and leave it running — the foreground service keeps the mesh alive.
+1. Open MeshHood, grant permissions, and complete profile setup.
+2. **Set my area** (long-press feed or **Area ▼**) — pick your state; ZIP fills from location.
+3. Leave the app running — the foreground service keeps the mesh alive.
+
+Send to **Everyone** for the public Area feed; use **Chats** for private messages.
 
 ### PC test harness (optional)
 
@@ -60,17 +83,36 @@ cd tools
 pip install -r requirements.txt
 python pc_test.py          # handshake + broadcast
 python pc_group_test.py    # groups + admin overlay
-python pc_demo.py          # scripted neighborhood demo
+python pc_demo.py          # scripted demo
 ```
 
 The phone must be running MeshHood with Bluetooth advertising active.
+
+### No second phone?
+
+Simulate **two neighbors** (Maria + Rosa) from your PC on the same BLE link:
+
+```bash
+python pc_two_phone_sim.py           # guided — follow steps on screen + phone
+python pc_two_phone_sim.py --auto    # hands-off demo (~45s)
+python pc_maria_reply.py             # stable Maria identity for DM tests
+```
+
+Covers Area feed, DMs, directory, profiles, emergency + ICE. Does **not** test WiFi Direct between two phones or 3-hop relay (needs 3 physical devices).
+
+Persistent simulated identities live in `tools/sim_identities/` (gitignored).
 
 ## Project layout
 
 ```
 MeshHood/
-├── app/src/main/java/com/meshhood/   # Android app + MeshService
-├── tools/                            # Python BLE protocol tests
+├── app/src/main/java/com/meshhood/
+│   ├── MeshService.kt      # mesh core, feed scopes, protocol
+│   ├── MeshZone.kt         # geographic hierarchy
+│   ├── GeoLocator.kt       # GPS → rolling ZIP
+│   ├── MessageChannel.kt   # channel + geo envelope fields
+│   └── MainActivity.kt     # Area ▼, Chats inbox, profile
+├── tools/                  # Python BLE protocol tests
 ├── docs/ARCHITECTURE.md
 ├── SECURITY.md
 └── LICENSE

@@ -34,7 +34,7 @@ MeshHood is a single Android app with a foreground service that runs three paral
 
 | Type | Purpose |
 |------|---------|
-| `broadcast` | Public neighborhood chat |
+| `broadcast` | Public Area message (`channel` + optional `geo` snapshot) |
 | `dm` | Direct message (plain or X25519-sealed) |
 | `key` | X25519 + Ed25519 public key handshake |
 | `kudos` | Signed reputation credit |
@@ -42,6 +42,21 @@ MeshHood is a single Android app with a foreground service that runs three paral
 | `status` / `vouch` | Capacity claims and neighbor attestation |
 | `groupcreate` / `groupjoin` / `groupmsg` / … | Community overlay |
 | `crew` / `crewjoin` | Help-call coordination |
+
+## Area feed vs comms channel
+
+Geography and messaging are **separate layers**:
+
+| Layer | Role |
+|-------|------|
+| **Geo** (`MeshZone`, `GeoLocator`, `ZoneContext`) | Profile anchor (state, nation) + rolling GPS ZIP; drives default feed and local sort order |
+| **Comms** (`MessageChannel`, envelope `channel`) | Viewer hint on each message — mesh relays do not filter by ZIP |
+| **UI** | **Area ▼** = public scopes; **Chats** = `dm:*` only |
+
+Broadcast envelopes include:
+
+- `channel` — e.g. `zone:postal:87110`, `everyone`, or a group id (legacy field: `zoneScope`)
+- `geo` — optional `{ lat, lon, postal, ts }` sender snapshot at send time
 
 ## Groups overlay
 

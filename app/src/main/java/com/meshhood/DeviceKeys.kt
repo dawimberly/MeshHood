@@ -85,12 +85,20 @@ object DeviceKeys {
             val ka = KeyAgreement.getInstance("XDH")
             ka.init(priv)
             ka.doPhase(peerPub, true)
-            val shared = ka.generateSecret()
+            // Java may strip leading zero bytes; Python/cryptography uses fixed 32 bytes.
+            val shared = normalizeX25519Shared(ka.generateSecret())
             val aesKey = MessageDigest.getInstance("SHA-256").digest(shared)
             derivedCache[peerPublicKeyB64] = aesKey
             aesKey
         } catch (_: Throwable) {
             null
         }
+    }
+
+    /** Pad to 32 bytes so ECDH output matches Python's raw X25519 exchange. */
+    private fun normalizeX25519Shared(raw: ByteArray): ByteArray {
+        if (raw.size == 32) return raw
+        if (raw.size > 32) return raw.copyOfRange(raw.size - 32, raw.size)
+        return ByteArray(32 - raw.size) + raw
     }
 }

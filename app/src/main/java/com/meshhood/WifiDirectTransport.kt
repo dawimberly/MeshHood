@@ -139,7 +139,7 @@ class WifiDirectTransport(
         if (!connectedPeers.add(deviceAddress)) return // already connecting/connected
         val config = WifiP2pConfig().apply { this.deviceAddress = deviceAddress }
         manager?.connect(channel, config, logListener("connect:$deviceAddress"))
-        onStatus("WiFi Direct: connecting to a neighbor")
+        onStatus("WiFi Direct: connecting")
     }
 
     @SuppressLint("MissingPermission")

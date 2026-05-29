@@ -63,7 +63,7 @@ class MeshService : Service() {
         fun displayLine(): String = "[$time] $sender: $text"
     }
 
-    /** Which feed tab is active (everyone or a group id). */
+    /** Which feed tab is active (everyone, a DM thread, or a group id). */
     var feedScope: String = SCOPE_EVERYONE
         private set
 
@@ -104,6 +104,8 @@ class MeshService : Service() {
     private val mySkills = mutableListOf<String>()
     private val myShares = mutableListOf<String>()
     private val myCerts = mutableListOf<String>()
+    private var myZone: MeshZone = MeshZone()
+    private val geoLocator = GeoLocator(this)
 
     data class Profile(
         val name: String,
@@ -180,8 +182,9 @@ class MeshService : Service() {
 
         const val EVERYONE = "Everyone"
         const val SCOPE_EVERYONE = "everyone"
+        const val DM_SCOPE_PREFIX = "dm:"
         // Fallback identity label before the user completes onboarding.
-        const val DEFAULT_NAME = "Neighbor"
+        const val DEFAULT_NAME = "Contact"
 
         private const val PREFS_NAME = "meshhood_store"
         private const val KEY_LOG = "log"
@@ -202,6 +205,7 @@ class MeshService : Service() {
         private const val KEY_GROUP_VERIFIED = "groupverified"
         private const val KEY_GROUP_PINS = "grouppins"
         private const val KEY_FEED_SCOPE = "feedscope"
+        private const val KEY_MY_ZONE = "myzone"
         private const val MAX_LOG_ENTRIES = 300
         private const val MAX_GROUP_PINS = 10
 
@@ -249,6 +253,34 @@ class MeshService : Service() {
         llmExecutor.execute {
             if (LlmEngine.tryLoad(applicationContext)) callback?.onUpdate()
         }
+        refreshLiveGeoAsync()
+    }
+
+    /** Rolling ZIP from GPS — merged with saved anchor in [effectiveZone]. */
+    fun effectiveZone(): MeshZone = ZoneContext.effective(myZone, geoLocator.currentPostal())
+
+    fun livePostal(): String = geoLocator.currentPostal()
+
+    fun refreshLiveGeoAsync() {
+        llmExecutor.execute {
+            val priorPostal = geoLocator.currentPostal()
+            geoLocator.refresh()
+            if (geoLocator.currentPostal().isNotEmpty() && geoLocator.currentPostal() != priorPostal) {
+                promoteFeedToFinestIfNeeded()
+            }
+            callback?.onUpdate()
+        }
+    }
+
+    /** Snap feed to finest locality when GPS postal updates or on load. */
+    private fun promoteFeedToFinestIfNeeded() {
+        val finest = defaultAreaScope()
+        if (finest == SCOPE_EVERYONE) return
+        val promote = feedScope == SCOPE_EVERYONE ||
+            (MeshZone.isZoneScope(feedScope) && MeshZone.isBroaderThan(feedScope, finest))
+        if (!promote) return
+        feedScope = finest
+        prefs.edit().putString(KEY_FEED_SCOPE, feedScope).apply()
     }
 
     private fun startWifiDirect() {
@@ -277,7 +309,7 @@ class MeshService : Service() {
     private fun onTransportBytes(bytes: ByteArray) {
         val decrypted = Crypto.decrypt(bytes)
         if (decrypted == null) {
-            appendLog("Neighbor", "[encrypted — wrong neighborhood key]")
+            appendLog(getString(R.string.default_contact_name), getString(R.string.log_wrong_key))
         } else {
             handleIncoming(decrypted)
         }
@@ -293,10 +325,10 @@ class MeshService : Service() {
 
     fun getLogText(): String = getFeedText(feedScope)
 
-    /** Filtered feed for a scope: everyone, or one group (+ emergencies always). */
+    /** Filtered feed for a scope: everyone, a zone level, a DM thread, or one group (+ emergencies always). */
     fun getFeedText(filterScope: String): String {
         val blocks = mutableListOf<String>()
-        if (filterScope != SCOPE_EVERYONE) {
+        if (filterScope != SCOPE_EVERYONE && !isDmScope(filterScope) && !MeshZone.isZoneScope(filterScope)) {
             groupOf(filterScope)?.let { g ->
                 val pins = pinsForGroup(filterScope)
                 if (pins.isNotEmpty()) {
@@ -308,31 +340,148 @@ class MeshService : Service() {
                 }
             }
         }
-        val entries = logEntries.filter { e ->
-            e.emergency || when (filterScope) {
-                SCOPE_EVERYONE -> e.scope == SCOPE_EVERYONE
-                else -> e.scope == filterScope
+        val home = effectiveZone()
+        val entries = logEntries.mapIndexed { index, e -> index to e }
+            .filter { (_, e) ->
+                if (e.emergency) return@filter true
+                // Your own public posts always show in area views (avoids scope mismatch).
+                if (e.sender == "You" && !isDmScope(e.scope) && groups[e.scope] == null &&
+                    (filterScope == SCOPE_EVERYONE || MeshZone.isZoneScope(filterScope))
+                ) {
+                    return@filter true
+                }
+                when {
+                    isDmScope(filterScope) -> e.scope == filterScope
+                    isGroupMember(filterScope) -> e.scope == filterScope
+                    filterScope == SCOPE_EVERYONE || MeshZone.isZoneScope(filterScope) ->
+                        MeshZone.visibleInView(e.scope, filterScope)
+                    else -> e.scope == filterScope
+                }
             }
-        }
-        blocks.addAll(entries.map { it.displayLine() })
+            .sortedWith(
+                compareBy<Pair<Int, LogEntry>> { (_, e) -> if (e.emergency) 0 else 1 }
+                    .thenBy { (_, e) -> MeshZone.proximityRank(e.scope, filterScope, home) }
+                    .thenBy { (index, _) -> index }
+            )
+        blocks.addAll(entries.map { (_, e) -> e.displayLine() })
         return blocks.joinToString("\n\n")
     }
 
     fun setFeedScope(scope: String) {
         feedScope = when {
             scope == SCOPE_EVERYONE -> SCOPE_EVERYONE
+            isDmScope(scope) -> scope
             isGroupMember(scope) -> scope
+            MeshZone.isZoneScope(scope) -> scope
             else -> SCOPE_EVERYONE
         }
         prefs.edit().putString(KEY_FEED_SCOPE, feedScope).apply()
         callback?.onUpdate()
     }
 
-    /** Labels for feed scope chips: (scope id, display name). */
+    /** Default area view: finest effective level (live ZIP when available), or Everyone. */
+    fun defaultAreaScope(): String =
+        if (effectiveZone().hasAny()) effectiveZone().defaultViewScope() else SCOPE_EVERYONE
+
+    fun getMyZone(): MeshZone = myZone
+
+    fun saveMyZone(zone: MeshZone) {
+        // Anchor only — postal rolls from [GeoLocator], not saved on profile.
+        myZone = zone.copy(postal = "")
+        prefs.edit().putString(KEY_MY_ZONE, myZone.toJson().toString()).apply()
+        if (effectiveZone().hasAny()) {
+            feedScope = effectiveZone().defaultViewScope()
+            prefs.edit().putString(KEY_FEED_SCOPE, feedScope).apply()
+        }
+        callback?.onUpdate()
+    }
+
+    /** Scope tag for outgoing public broadcasts (finest effective level). */
+    private fun publicBroadcastScope(): String =
+        ZoneContext.broadcastChannel(myZone, geoLocator.currentPostal())
+
+    private fun currentGeoSnapshot(): GeoLocator.Snapshot? = geoLocator.current()
+
+    fun feedScopeLabel(scope: String): String = when {
+        scope == SCOPE_EVERYONE -> EVERYONE
+        MeshZone.isZoneScope(scope) -> effectiveZone().labelForScope(scope)
+        isDmScope(scope) -> peerFromDmScope(scope)
+        else -> groupOf(scope)?.name ?: scope
+    }
+
+    fun dmScope(peer: String): String = DM_SCOPE_PREFIX + peer
+
+    fun isDmScope(scope: String): Boolean = scope.startsWith(DM_SCOPE_PREFIX)
+
+    fun peerFromDmScope(scope: String): String = scope.removePrefix(DM_SCOPE_PREFIX)
+
+    /** Labels for area picker: locality (specific → broad), then Everyone, then groups. */
     fun feedScopeOptions(): List<Pair<String, String>> {
-        val options = mutableListOf(SCOPE_EVERYONE to EVERYONE)
+        val options = mutableListOf<Pair<String, String>>()
+        options.addAll(effectiveZone().optionsMostSpecificFirst())
+        options.add(SCOPE_EVERYONE to EVERYONE)
         for (g in myGroups()) options.add(g.id to g.name)
         return options
+    }
+
+    data class DmConversation(
+        val peer: String,
+        val preview: String,
+        val time: String,
+        val outgoing: Boolean,
+    )
+
+    /** Most-recent-first list of private threads for the Chats inbox. */
+    fun dmConversations(): List<DmConversation> {
+        val latestByPeer = linkedMapOf<String, LogEntry>()
+        for (entry in logEntries) {
+            if (!isDmScope(entry.scope)) continue
+            latestByPeer[peerFromDmScope(entry.scope)] = entry
+        }
+        return latestByPeer.entries
+            .map { (peer, entry) ->
+                DmConversation(
+                    peer = peer,
+                    preview = dmPreview(entry),
+                    time = entry.time,
+                    outgoing = entry.sender.startsWith("You"),
+                )
+            }
+            .sortedByDescending { conv ->
+                logEntries.indexOfLast { isDmScope(it.scope) && peerFromDmScope(it.scope) == conv.peer }
+            }
+    }
+
+    private fun dmPreview(entry: LogEntry): String {
+        val body = entry.text.trim()
+        return if (entry.sender.startsWith("You")) "You: $body" else body
+    }
+
+    /** Move older DM lines out of the Everyone feed into per-neighbor threads. */
+    private fun migrateLegacyDmScopes() {
+        var changed = false
+        for (i in logEntries.indices) {
+            val entry = logEntries[i]
+            if (entry.scope != SCOPE_EVERYONE || entry.emergency) continue
+            val peer = legacyDmPeer(entry.sender) ?: continue
+            logEntries[i] = entry.copy(scope = dmScope(peer))
+            changed = true
+        }
+        if (changed) saveLog()
+    }
+
+    private fun legacyDmPeer(sender: String): String? {
+        if (sender.startsWith("You \u2192 ")) {
+            return sender.removePrefix("You \u2192 ")
+                .removeSuffix(" \uD83D\uDD10")
+                .trim()
+        }
+        if (sender.startsWith("DM from ")) {
+            return sender.removePrefix("DM from ")
+                .removeSuffix(" \uD83D\uDD10")
+                .trim()
+        }
+        return null
     }
 
     private fun createNotificationChannel() {
@@ -340,27 +489,27 @@ class MeshService : Service() {
 
         val ongoing = NotificationChannel(
             CHANNEL_ID,
-            "MeshHood status",
+            getString(R.string.channel_mesh_status),
             NotificationManager.IMPORTANCE_LOW
         )
-        ongoing.description = "Keeps the neighborhood mesh active"
+        ongoing.description = getString(R.string.channel_mesh_desc)
         manager.createNotificationChannel(ongoing)
 
         val messages = NotificationChannel(
             MESSAGE_CHANNEL_ID,
-            "Neighbor messages",
+            getString(R.string.channel_messages),
             NotificationManager.IMPORTANCE_HIGH
         )
-        messages.description = "Alerts when a neighbor message arrives"
+        messages.description = getString(R.string.notify_new_message)
         messages.enableVibration(true)
         manager.createNotificationChannel(messages)
 
         val triage = NotificationChannel(
             TRIAGE_CHANNEL_ID,
-            "Neighborhood status",
+            getString(R.string.channel_area_status),
             NotificationManager.IMPORTANCE_DEFAULT
         )
-        triage.description = "Live summary of needs, offers and matches"
+        triage.description = getString(R.string.notify_area_status)
         manager.createNotificationChannel(triage)
     }
 
@@ -433,7 +582,7 @@ class MeshService : Service() {
     private fun parseLegacyLog(line: String): LogEntry {
         val time = line.substringAfter("[").substringBefore("]", "")
         val afterTime = line.substringAfter("] ", line)
-        val sender = afterTime.substringBefore(": ", "Neighbor")
+        val sender = afterTime.substringBefore(": ", DEFAULT_NAME)
         val text = afterTime.substringAfter(": ", "")
         return LogEntry(time, sender, text)
     }
@@ -455,7 +604,7 @@ class MeshService : Service() {
                         logEntries.add(
                             LogEntry(
                                 time = o.optString("time", ""),
-                                sender = o.optString("sender", "Neighbor"),
+                                sender = o.optString("sender", DEFAULT_NAME),
                                 text = o.optString("text", ""),
                                 scope = o.optString("scope", SCOPE_EVERYONE),
                                 emergency = o.optBoolean("emergency", false)
@@ -466,6 +615,7 @@ class MeshService : Service() {
                     }
                 }
             }
+            migrateLegacyDmScopes()
             prefs.getString(KEY_PEERS, null)?.let { raw ->
                 val obj = JSONObject(raw)
                 for (name in obj.keys()) {
@@ -549,10 +699,48 @@ class MeshService : Service() {
                 }
             }
             prefs.getString(KEY_FEED_SCOPE, SCOPE_EVERYONE)?.let { feedScope = it }
+            prefs.getString(KEY_MY_ZONE, null)?.let { raw ->
+                myZone = MeshZone.fromJson(JSONObject(raw))
+            }
+            migrateDefaultZone()
+            feedScope = sanitizeFeedScope(feedScope)
+            prefs.edit().putString(KEY_FEED_SCOPE, feedScope).apply()
         } catch (_: Exception) {
             // Corrupt store — start fresh rather than crash.
         }
         rebuildCoordinatorFromLog()
+    }
+
+    /** Existing profiles from before area support — seed nation so the picker is usable. */
+    private fun migrateDefaultZone() {
+        if (myZone.hasAny() || !hasProfile()) return
+        myZone = MeshZone(nation = "US")
+        prefs.edit().putString(KEY_MY_ZONE, myZone.toJson().toString()).apply()
+        if (feedScope == SCOPE_EVERYONE) {
+            feedScope = defaultAreaScope()
+            prefs.edit().putString(KEY_FEED_SCOPE, feedScope).apply()
+        }
+    }
+
+    /** True once state is set and/or live GPS postal is available. */
+    fun hasLocalArea(): Boolean =
+        myZone.state.isNotBlank() || geoLocator.currentPostal().isNotBlank()
+
+    /** Drop stale scopes; default to most specific locality when area is configured. */
+    private fun sanitizeFeedScope(scope: String): String {
+        val finest = defaultAreaScope()
+        return when {
+            scope == SCOPE_EVERYONE ->
+                if (effectiveZone().hasAny()) finest else scope
+            isDmScope(scope) -> scope
+            MeshZone.isZoneScope(scope) -> when {
+                MeshZone.valueFromScope(scope).isBlank() -> finest
+                finest != SCOPE_EVERYONE && MeshZone.isBroaderThan(scope, finest) -> finest
+                else -> scope
+            }
+            groups.containsKey(scope) && isGroupMember(scope) -> scope
+            else -> finest
+        }
     }
 
     /** Replay the saved public messages through the Coordinator after a restart. */
@@ -564,7 +752,8 @@ class MeshService : Service() {
             if (sender.isEmpty() || text.isEmpty()) continue
             // Skip private DMs; replay only public broadcasts/emergencies.
             if (sender.startsWith("DM from") || sender.startsWith("You \u2192")) continue
-            if (entry.scope != SCOPE_EVERYONE && !entry.emergency) continue
+            if (entry.scope != SCOPE_EVERYONE && !entry.emergency &&
+                !MeshZone.isZoneScope(entry.scope)) continue
             val name = when {
                 sender == "You" || sender == "EMERGENCY" -> myName
                 sender.contains(" \u00b7 ") -> sender.substringAfter(" \u00b7 ")
@@ -807,10 +996,10 @@ class MeshService : Service() {
     private val gattServerCallback = object : BluetoothGattServerCallback() {
         override fun onConnectionStateChange(device: BluetoothDevice, status: Int, newState: Int) {
             if (newState == BluetoothGatt.STATE_CONNECTED) {
-                setStatus("Neighbor connected")
+                setStatus(getString(R.string.status_connected))
             } else if (newState == BluetoothGatt.STATE_DISCONNECTED) {
                 subscribers.remove(device)
-                setStatus("Advertising... waiting for neighbors")
+                setStatus(getString(R.string.status_advertising))
             }
         }
 
@@ -886,7 +1075,7 @@ class MeshService : Service() {
             .build()
         advertiseCallback = object : AdvertiseCallback() {
             override fun onStartSuccess(settingsInEffect: AdvertiseSettings?) {
-                setStatus("Advertising... waiting for neighbors")
+                setStatus(getString(R.string.status_advertising))
             }
 
             override fun onStartFailure(errorCode: Int) {
@@ -985,7 +1174,7 @@ class MeshService : Service() {
         val sig = SignKeys.sign(payload) ?: return
         // Apply locally too (each giver credits a helper once).
         applyKudos(myName, helper)
-        appendLog("You", "\uD83D\uDE4F thanked $helper (Good Neighbor)")
+        appendLog("You", "\uD83D\uDE4F ${getString(R.string.kudos_log, helper)}")
         val id = newId()
         markSeen(id)
         flood(kudosEnvelope(id, TTL_DEFAULT, myName, helper, ts, sig))
@@ -1560,9 +1749,12 @@ class MeshService : Service() {
         val id = newId()
         markSeen(id)
         if (!isDirect) {
-            appendLog("You", text)
+            val scope = publicBroadcastScope()
+            feedScope = scope
+            prefs.edit().putString(KEY_FEED_SCOPE, feedScope).apply()
+            appendLog("You", text, scope = scope)
             feedCoordinator(myName, text)
-            flood(broadcastEnvelope(id, TTL_DEFAULT, myName, text))
+            flood(broadcastEnvelope(id, TTL_DEFAULT, myName, text, scope, currentGeoSnapshot()))
             return
         }
 
@@ -1578,11 +1770,11 @@ class MeshService : Service() {
                 put("ts", System.currentTimeMillis())
             }.toString()
             val body = Base64.encodeToString(Crypto.encryptWithKey(pairKey, inner), Base64.NO_WRAP)
-            appendLog("You \u2192 $to \uD83D\uDD10", text)
+            appendLog("You \u2192 $to \uD83D\uDD10", text, scope = dmScope(to))
             flood(sealedDmEnvelope(id, TTL_DEFAULT, body))
         } else {
             // No key yet for this peer — fall back to a non-private DM.
-            appendLog("You \u2192 $to", text)
+            appendLog("You \u2192 $to", text, scope = dmScope(to))
             flood(plainDmEnvelope(id, TTL_DEFAULT, myName, to, text))
         }
     }
@@ -1604,12 +1796,15 @@ class MeshService : Service() {
         }
         val id = newId()
         markSeen(id)
-        appendLog("EMERGENCY", payload, emergency = true)
+        appendLog("EMERGENCY", payload, scope = publicBroadcastScope(), emergency = true)
         feedCoordinator(myName, payload)
         // Attach the ICE card so responders see vitals the moment the alert lands.
+        val scope = publicBroadcastScope()
+        val geo = currentGeoSnapshot()
         val envelope = baseEnvelope("broadcast", id, TTL_DEFAULT).apply {
             put("from", myName)
             put("text", payload)
+            MessageChannel.attach(this, scope, geo)
             if (!myIce.isBlank()) put("ice", iceToJson(myIce))
         }.toString()
         flood(envelope)
@@ -1626,10 +1821,18 @@ class MeshService : Service() {
             put("ts", System.currentTimeMillis())
         }
 
-    private fun broadcastEnvelope(id: String, ttl: Int, from: String, text: String): String =
+    private fun broadcastEnvelope(
+        id: String,
+        ttl: Int,
+        from: String,
+        text: String,
+        channel: String = SCOPE_EVERYONE,
+        geo: GeoLocator.Snapshot? = null,
+    ): String =
         baseEnvelope("broadcast", id, ttl).apply {
             put("from", from)
             put("text", text)
+            MessageChannel.attach(this, channel, geo)
         }.toString()
 
     private fun sealedDmEnvelope(id: String, ttl: Int, body: String): String =
@@ -1800,8 +2003,8 @@ class MeshService : Service() {
             JSONObject(raw)
         } catch (_: Exception) {
             // Not JSON (legacy/plain) — show it once, can't relay (no id).
-            appendLog("Neighbor", raw)
-            notifyIncoming("New neighbor message", raw)
+            appendLog(DEFAULT_NAME, raw)
+            notifyIncoming(getString(R.string.notify_new_message), raw)
             return
         }
 
@@ -1839,7 +2042,7 @@ class MeshService : Service() {
             "profile" -> handleProfile(obj, ttl)
 
             "crew" -> {
-                val from = obj.optString("from", "Neighbor")
+                val from = obj.optString("from", DEFAULT_NAME)
                 val task = obj.optString("text", "")
                 if (from != myName) {
                     trackPeer(from)
@@ -1850,7 +2053,7 @@ class MeshService : Service() {
             }
 
             "crewjoin" -> {
-                val from = obj.optString("from", "Neighbor")
+                val from = obj.optString("from", DEFAULT_NAME)
                 val task = obj.optString("text", "")
                 if (from != myName) {
                     trackPeer(from)
@@ -1872,7 +2075,7 @@ class MeshService : Service() {
             "groupmsg" -> handleGroupMsg(obj, ttl)
 
             "broadcast" -> {
-                val from = obj.optString("from", "Neighbor")
+                val from = obj.optString("from", DEFAULT_NAME)
                 val text = obj.optString("text", "")
                 if (from != myName) {
                     trackPeer(from)
@@ -1885,7 +2088,13 @@ class MeshService : Service() {
                             appendLog("\uD83E\uDE7A $from medical", iceSummary(ice))
                         }
                     }
-                    displayIncoming(isDirect = false, isPrivate = false, from = from, text = text)
+                    displayIncoming(
+                        isDirect = false,
+                        isPrivate = false,
+                        from = from,
+                        text = text,
+                        zoneScope = MessageChannel.channelFromGeo(obj),
+                    )
                 }
                 relay(obj, ttl)
             }
@@ -1906,7 +2115,7 @@ class MeshService : Service() {
                     // Cleartext fallback DM (no key was available at send time).
                     val to = obj.optString("to", "")
                     if (to.equals(myName, ignoreCase = true)) {
-                        val from = obj.optString("from", "Neighbor")
+                        val from = obj.optString("from", DEFAULT_NAME)
                         trackPeer(from)
                         displayIncoming(true, isPrivate = false, from = from, text = obj.optString("text", ""))
                     }
@@ -1974,7 +2183,7 @@ class MeshService : Service() {
         lastTriageHeadline = headline
 
         val notification = NotificationCompat.Builder(this, TRIAGE_CHANNEL_ID)
-            .setContentTitle("\uD83E\uDDED Neighborhood status")
+            .setContentTitle("\uD83E\uDDED ${getString(R.string.notify_area_status)}")
             .setContentText(headline)
             .setStyle(NotificationCompat.BigTextStyle().bigText(Coordinator.summary()))
             .setSmallIcon(R.drawable.ic_notification)
@@ -1986,7 +2195,13 @@ class MeshService : Service() {
             .notify(TRIAGE_NOTIFICATION_ID, notification)
     }
 
-    private fun displayIncoming(isDirect: Boolean, isPrivate: Boolean, from: String, text: String) {
+    private fun displayIncoming(
+        isDirect: Boolean,
+        isPrivate: Boolean,
+        from: String,
+        text: String,
+        zoneScope: String = SCOPE_EVERYONE,
+    ) {
         val isEmergency = text.contains("NEED HELP", ignoreCase = true)
         if (!isDirect) feedCoordinator(from, text)
         val label = when {
@@ -1994,11 +2209,12 @@ class MeshService : Service() {
             isDirect -> "DM from $from"
             else -> from
         }
-        appendLog(label, text)
+        val scope = if (isDirect) dmScope(from) else zoneScope
+        appendLog(label, text, scope = scope, emergency = isEmergency)
         val title = when {
-            isEmergency -> "\uD83D\uDEA8 EMERGENCY nearby"
-            isDirect -> "Direct message from $from"
-            else -> "New neighbor message"
+            isEmergency -> getString(R.string.notify_emergency)
+            isDirect -> getString(R.string.notify_direct_message, from)
+            else -> getString(R.string.notify_new_message)
         }
         notifyIncoming(title, text)
     }

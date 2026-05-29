@@ -2,16 +2,92 @@
     <string name="app_name">MeshHood</string>
     <string name="menu">More options</string>
     <string name="send">Send message</string>
-    <string name="feed_title">Neighborhood</string>
+
+    <!-- Public local feed (generic — not tied to "neighborhood" geography) -->
+    <string name="feed_title">Area</string>
+    <string name="area_picker_title">Switch area</string>
+    <string name="area_picker_button">Area</string>
+    <string name="area_picker_button_label">%1$s ▼</string>
     <string name="feed_title_group">%1$s</string>
+    <string name="feed_title_dm">Chat with %1$s</string>
     <string name="feed_scope_everyone">Everyone</string>
     <string name="feed_encrypted">Encrypted</string>
-    <string name="feed_empty">No messages yet.\nYour mesh is listening for neighbors.</string>
+    <string name="feed_empty">No messages yet.\nYour mesh is listening for others.</string>
     <string name="feed_empty_group">No messages in this group yet.\nSay hello or check pinned posts.</string>
+    <string name="feed_empty_dm">No direct messages yet.\nSend a private message below.</string>
+    <string name="feed_back_area">Back to area</string>
+
+    <string name="chats_inbox_title">Private chats</string>
+    <string name="chats_empty">No private conversations yet.\nPublic messages stay in Area.\nSend a direct message to start a private chat.</string>
+    <string name="chats_button">Chats</string>
+    <string name="chats_button_count">Chats (%1$d)</string>
+
     <string name="message_hint">Message</string>
     <string name="recipient_default">Everyone</string>
     <string name="coordinator">Status</string>
     <string name="emergency_label">Emergency — Need Help</string>
-    <string name="emergency_subtitle">Alerts nearby neighbors and shares your ICE card</string>
+    <string name="emergency_subtitle">Alerts others nearby and shares your ICE card</string>
     <string name="status_connecting">Connecting mesh…</string>
+    <string name="status_advertising">Advertising… waiting to connect</string>
+    <string name="status_connected">Connected</string>
+
+    <string name="default_contact_name">Contact</string>
+    <string name="log_wrong_key">[encrypted — wrong area key]</string>
+    <string name="notify_new_message">New message</string>
+    <string name="notify_direct_message">Direct message from %1$s</string>
+    <string name="notify_emergency">🚨 Emergency nearby</string>
+    <string name="notify_area_status">Area status</string>
+    <string name="channel_mesh_status">Mesh status</string>
+    <string name="channel_mesh_desc">Keeps the local mesh active</string>
+    <string name="channel_messages">Messages</string>
+    <string name="channel_area_status">Area status</string>
+    <string name="kudos_log">thanked %1$s</string>
+
+    <string name="menu_send_thanks">Send thanks</string>
+    <string name="menu_directory">Directory</string>
+    <string name="menu_thanks_board">Thanks board</string>
+    <string name="menu_vouch">Vouch for someone</string>
+    <string name="menu_call_help">Call for help</string>
+    <string name="menu_my_groups">My groups</string>
+    <string name="menu_create_group">Create group</string>
+    <string name="menu_my_capacity">My capacity status</string>
+    <string name="menu_edit_profile">Edit my profile</string>
+    <string name="menu_set_area">Set my area</string>
+    <string name="menu_emergency_card">Emergency card</string>
+    <string name="menu_clear_feed">Clear feed</string>
+
+    <string name="title_thanks_board">Thanks board</string>
+    <string name="title_send_thanks">Send thanks</string>
+    <string name="title_directory">Directory</string>
+    <string name="title_vouch_status">Vouch for capacity status</string>
+    <string name="title_call_help">Call for help</string>
+
+    <string name="toast_vouch_confirm">Others can vouch to confirm your status</string>
+    <string name="toast_no_limited_status">No one has declared a limited status yet</string>
+    <string name="toast_no_contacts">No contacts yet</string>
+    <string name="toast_certs_note">Certifications (self-declared; others can verify later)</string>
+
+    <string name="profile_area_heading">Your area</string>
+    <string name="zone_nation_label">Nation</string>
+    <string name="zone_nation_hint">e.g. US</string>
+    <string name="zone_national_label">National region</string>
+    <string name="zone_national_hint">e.g. Southwest</string>
+    <string name="zone_state_label">State / province</string>
+    <string name="zone_state_hint">e.g. NM</string>
+    <string name="zone_region_label">Region / metro</string>
+    <string name="zone_region_hint">e.g. Albuquerque metro</string>
+    <string name="zone_postal_label">ZIP / postal code</string>
+    <string name="zone_postal_hint">e.g. 87110</string>
+    <string name="zone_local_label">Local (optional)</string>
+    <string name="zone_local_hint">e.g. block, campus, building</string>
+
+    <string name="quick_area_title">Set your area</string>
+    <string name="quick_area_message">Pick your state. ZIP updates automatically from location (same permission as mesh Bluetooth).</string>
+    <string name="quick_area_save">Save</string>
+    <string name="quick_area_skip">Skip for now</string>
+    <string name="quick_area_required">Select a state, or enable location for rolling ZIP</string>
+    <string name="quick_area_saved">Area saved</string>
+    <string name="live_zip_value">Current ZIP (from location): %1$s</string>
+    <string name="live_zip_pending">Current ZIP: waiting for location…</string>
+    <string name="profile_area_hint">State is saved on your profile. ZIP rolls from location for feed order and message tags.</string>
 </resources>

@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:background="@color/mesh_surface"
+    android:orientation="vertical"
+    android:paddingTop="@dimen/spacing_md"
+    android:paddingBottom="@dimen/spacing_lg">
+
+    <TextView
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="@dimen/spacing_md"
+        android:paddingBottom="@dimen/spacing_sm"
+        android:text="@string/chats_inbox_title"
+        android:textColor="@color/mesh_on_surface"
+        android:textSize="18sp"
+        android:textStyle="bold" />
+
+    <TextView
+        android:id="@+id/chatsEmptyText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="@dimen/spacing_md"
+        android:paddingVertical="@dimen/spacing_lg"
+        android:text="@string/chats_empty"
+        android:textColor="@color/mesh_on_surface_variant"
+        android:textSize="14sp"
+        android:visibility="gone" />
+
+    <androidx.recyclerview.widget.RecyclerView
+        android:id="@+id/conversationList"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:clipToPadding="false"
+        android:maxHeight="420dp"
+        android:paddingBottom="@dimen/spacing_sm"
+        android:scrollbars="vertical" />
+</LinearLayout>

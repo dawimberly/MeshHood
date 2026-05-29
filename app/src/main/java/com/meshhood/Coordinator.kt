@@ -156,7 +156,7 @@ object Coordinator {
     /** A human-readable coordination summary for the UI / notifications. */
     fun summary(): String {
         if (!hasContent()) {
-            return "No needs or offers detected yet.\n\nAs neighbors post things like " +
+            return "No needs or offers detected yet.\n\nAs people post things like " +
                 "\"I have a generator\" or \"need insulin\", MeshHood will match them here."
         }
         val sb = StringBuilder()
