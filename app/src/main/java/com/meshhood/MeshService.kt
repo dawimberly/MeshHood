@@ -18,7 +18,7 @@ import android.bluetooth.BluetoothManager
 import android.bluetooth.le.AdvertiseCallback
 import android.bluetooth.le.AdvertiseData
 import android.bluetooth.le.AdvertiseSettings
-import android.content.Context
+import android.net.Uri
 import android.content.Intent
 import android.location.LocationManager
 import android.os.Binder
@@ -95,6 +95,10 @@ class MeshService : Service() {
     private val statusOf = HashMap<String, String>()
     // subject -> set of neighbors who vouched for that person's capacity claim.
     private val vouchesFor = HashMap<String, MutableSet<String>>()
+    // subject -> neighbors who vouched this person matches their profile photo.
+    private val photoVouchesFor = HashMap<String, MutableSet<String>>()
+    // Latest SHA-256 hash of each neighbor's profile photo (from signed mesh thumbs).
+    private val peerPhotoHash = HashMap<String, String>()
 
     // ---- Identity & profile ----
     // Your display name (identity is the keypair; this is the human label). Empty
@@ -206,6 +210,8 @@ class MeshService : Service() {
         private const val KEY_GROUP_PINS = "grouppins"
         private const val KEY_FEED_SCOPE = "feedscope"
         private const val KEY_MY_ZONE = "myzone"
+        private const val KEY_PHOTO_VOUCH = "photovouches"
+        private const val KEY_PEER_PHOTO_HASH = "peerphotohash"
         private const val MAX_LOG_ENTRIES = 300
         private const val MAX_GROUP_PINS = 10
 
@@ -329,7 +335,7 @@ class MeshService : Service() {
     fun getFeedText(filterScope: String): String {
         val blocks = mutableListOf<String>()
         if (filterScope != SCOPE_EVERYONE && !isDmScope(filterScope) && !MeshZone.isZoneScope(filterScope)) {
-            groupOf(filterScope)?.let { g ->
+            if (groupOf(filterScope) != null) {
                 val pins = pinsForGroup(filterScope)
                 if (pins.isNotEmpty()) {
                     blocks.add(
@@ -649,6 +655,21 @@ class MeshService : Service() {
                     vouchesFor[subject] = set
                 }
             }
+            prefs.getString(KEY_PHOTO_VOUCH, null)?.let { raw ->
+                val obj = JSONObject(raw)
+                for (subject in obj.keys()) {
+                    val arr = obj.optJSONArray(subject) ?: continue
+                    val set = mutableSetOf<String>()
+                    for (i in 0 until arr.length()) set.add(arr.getString(i))
+                    photoVouchesFor[subject] = set
+                }
+            }
+            prefs.getString(KEY_PEER_PHOTO_HASH, null)?.let { raw ->
+                val obj = JSONObject(raw)
+                for (name in obj.keys()) {
+                    peerPhotoHash[name] = obj.optString(name, "")
+                }
+            }
             prefs.getString(KEY_MY_NAME, "")?.takeIf { it.isNotEmpty() }?.let { myName = it }
             loadStringList(KEY_MY_SKILLS, mySkills)
             loadStringList(KEY_MY_SHARES, myShares)
@@ -805,6 +826,17 @@ class MeshService : Service() {
         prefs.edit()
             .putString(KEY_STATUS, status.toString())
             .putString(KEY_VOUCH, vouch.toString())
+            .apply()
+    }
+
+    private fun savePhotoState() {
+        val vouch = JSONObject()
+        for ((subject, set) in photoVouchesFor) vouch.put(subject, JSONArray(set.toList()))
+        val hashes = JSONObject()
+        for ((name, hash) in peerPhotoHash) hashes.put(name, hash)
+        prefs.edit()
+            .putString(KEY_PHOTO_VOUCH, vouch.toString())
+            .putString(KEY_PEER_PHOTO_HASH, hashes.toString())
             .apply()
     }
 
@@ -1324,6 +1356,117 @@ class MeshService : Service() {
         }
     }
 
+    fun photoVouchCountFor(name: String): Int = photoVouchesFor[name]?.size ?: 0
+
+    fun hasPhotoFor(name: String): Boolean =
+        if (name == myName) hasProfilePhoto() else PeerPhotos.hasPhoto(this, name)
+
+    /** True once enough neighbors vouch the person matches their profile photo. */
+    fun isPhotoVerified(name: String): Boolean =
+        hasPhotoFor(name) && photoVouchCountFor(name) >= VOUCH_THRESHOLD
+
+    fun isProfilePhotoVerified(): Boolean = isPhotoVerified(myName)
+
+    /** Vouch that [subject]'s profile photo looks like them in person (signed). */
+    fun vouchProfilePhoto(subject: String) {
+        if (subject == myName) return
+        val hash = photoHashFor(subject) ?: return
+        val ts = System.currentTimeMillis()
+        val sig = SignKeys.sign(photoVouchPayload(myName, subject, hash, ts)) ?: return
+        if (applyPhotoVouch(myName, subject, hash)) {
+            appendLog("You", "\u2713 vouched for $subject's photo")
+        }
+        val id = newId()
+        markSeen(id)
+        flood(photoVouchEnvelope(id, TTL_DEFAULT, myName, subject, hash, ts, sig))
+    }
+
+    private fun photoHashFor(name: String): String? =
+        if (name == myName) ProfilePhoto.contentHash(this) else peerPhotoHash[name]
+
+    private fun applyPhotoVouch(voucher: String, subject: String, hash: String): Boolean {
+        if (photoHashFor(subject) != hash) return false
+        val set = photoVouchesFor.getOrPut(subject) { mutableSetOf() }
+        val added = set.add(voucher)
+        if (added) {
+            savePhotoState()
+            callback?.onUpdate()
+        }
+        return added
+    }
+
+    private fun notePeerPhotoHash(name: String, hash: String) {
+        val prior = peerPhotoHash[name]
+        if (prior == hash) return
+        peerPhotoHash[name] = hash
+        photoVouchesFor.remove(name)
+        if (prior != null) PeerPhotos.delete(this, name)
+        savePhotoState()
+    }
+
+    private fun photoThumbPayload(from: String, hash: String, ts: Long) = "photothumb|$from|$hash|$ts"
+    private fun photoVouchPayload(voucher: String, subject: String, hash: String, ts: Long) =
+        "photovouch|$voucher|$subject|$hash|$ts"
+
+    private fun handlePhotoThumb(obj: JSONObject, ttl: Int) {
+        val from = obj.optString("from", "")
+        val hash = obj.optString("hash", "")
+        val thumbB64 = obj.optString("thumb", "")
+        val ts = obj.optLong("kts", 0L)
+        val sig = obj.optString("sig", "")
+        if (from.isEmpty() || hash.isEmpty() || thumbB64.isEmpty() || from == myName) {
+            relay(obj, ttl)
+            return
+        }
+        val verifyKey = peerSignKeys[from]
+        if (verifyKey == null) {
+            relay(obj, ttl)
+            return
+        }
+        if (!SignKeys.verify(photoThumbPayload(from, hash, ts), sig, verifyKey)) {
+            android.util.Log.w("Photo", "Rejected forged photo thumb from $from")
+            return
+        }
+        val bytes = try {
+            Base64.decode(thumbB64, Base64.NO_WRAP)
+        } catch (_: Exception) {
+            relay(obj, ttl)
+            return
+        }
+        if (PeerPhotos.saveBytes(this, from, bytes)) {
+            notePeerPhotoHash(from, hash)
+            trackPeer(from)
+            appendLog("Photo", "$from shared a profile photo")
+            callback?.onUpdate()
+        }
+        relay(obj, ttl)
+    }
+
+    private fun handlePhotoVouch(obj: JSONObject, ttl: Int) {
+        val voucher = obj.optString("from", "")
+        val subject = obj.optString("to", "")
+        val hash = obj.optString("hash", "")
+        val ts = obj.optLong("kts", 0L)
+        val sig = obj.optString("sig", "")
+        if (voucher.isEmpty() || subject.isEmpty() || hash.isEmpty()) return
+        val verifyKey = peerSignKeys[voucher]
+        if (verifyKey != null) {
+            if (!SignKeys.verify(photoVouchPayload(voucher, subject, hash, ts), sig, verifyKey)) {
+                android.util.Log.w("Photo", "Rejected forged photo vouch from $voucher")
+                return
+            }
+            if (applyPhotoVouch(voucher, subject, hash)) {
+                appendLog(
+                    "Photo",
+                    "$voucher vouched for $subject's photo (${photoVouchCountFor(subject)}/$VOUCH_THRESHOLD)",
+                )
+            }
+            relay(obj, ttl)
+        } else {
+            relay(obj, ttl)
+        }
+    }
+
     // ---- Crew help-calls ("who can come help shovel Edna's driveway?") ----
 
     fun callForHelp(task: String) {
@@ -1664,6 +1807,26 @@ class MeshService : Service() {
 
     fun hasProfile(): Boolean = prefs.contains(KEY_MY_NAME)
 
+    fun hasProfilePhoto(): Boolean = ProfilePhoto.hasPhoto(this)
+
+    /** Save a local profile photo; clears vouches until neighbors confirm again. */
+    fun saveProfilePhoto(uri: Uri): Boolean {
+        if (!ProfilePhoto.saveFromUri(this, uri)) return false
+        photoVouchesFor.remove(myName)
+        savePhotoState()
+        broadcastPhotoThumb()
+        callback?.onUpdate()
+        return true
+    }
+
+    fun clearProfilePhoto() {
+        ProfilePhoto.delete(this)
+        photoVouchesFor.remove(myName)
+        peerPhotoHash.remove(myName)
+        savePhotoState()
+        callback?.onUpdate()
+    }
+
     fun myProfile(): Profile = Profile(myName, mySkills.toList(), myShares.toList(), myCerts.toList())
 
     fun profileOf(name: String): Profile? =
@@ -1703,6 +1866,18 @@ class MeshService : Service() {
         val id = newId()
         markSeen(id)
         flood(profileEnvelope(id, TTL_DEFAULT, myName, ts, mySkills, myShares, myCerts, sig))
+        broadcastPhotoThumb()
+    }
+
+    fun broadcastPhotoThumb() {
+        if (!hasProfilePhoto()) return
+        val hash = ProfilePhoto.contentHash(this) ?: return
+        val thumb = ProfilePhoto.meshThumbnailBytes(this) ?: return
+        val ts = System.currentTimeMillis()
+        val sig = SignKeys.sign(photoThumbPayload(myName, hash, ts)) ?: return
+        val id = newId()
+        markSeen(id)
+        flood(photoThumbEnvelope(id, TTL_DEFAULT, myName, hash, thumb, ts, sig))
     }
 
     private fun profilePayload(
@@ -1903,6 +2078,26 @@ class MeshService : Service() {
         put("sig", sig)
     }.toString()
 
+    private fun photoThumbEnvelope(
+        id: String, ttl: Int, from: String, hash: String, thumb: ByteArray, ts: Long, sig: String
+    ): String = baseEnvelope("photothumb", id, ttl).apply {
+        put("from", from)
+        put("hash", hash)
+        put("kts", ts)
+        put("sig", sig)
+        put("thumb", Base64.encodeToString(thumb, Base64.NO_WRAP))
+    }.toString()
+
+    private fun photoVouchEnvelope(
+        id: String, ttl: Int, voucher: String, subject: String, hash: String, ts: Long, sig: String
+    ): String = baseEnvelope("photovouch", id, ttl).apply {
+        put("from", voucher)
+        put("to", subject)
+        put("hash", hash)
+        put("kts", ts)
+        put("sig", sig)
+    }.toString()
+
     private fun groupCreateEnvelope(
         id: String, ttl: Int, gid: String, name: String, founder: String, ts: Long, sig: String
     ): String = baseEnvelope("groupcreate", id, ttl).apply {
@@ -2028,6 +2223,7 @@ class MeshService : Service() {
                     if (isNew) {
                         sendKeyAnnouncement()
                         if (hasProfile()) broadcastProfile()
+                        if (hasProfilePhoto()) broadcastPhotoThumb()
                     }
                 }
                 relay(obj, ttl)
@@ -2038,6 +2234,10 @@ class MeshService : Service() {
             "status" -> handleStatus(obj, ttl)
 
             "vouch" -> handleVouch(obj, ttl)
+
+            "photothumb" -> handlePhotoThumb(obj, ttl)
+
+            "photovouch" -> handlePhotoVouch(obj, ttl)
 
             "profile" -> handleProfile(obj, ttl)
 

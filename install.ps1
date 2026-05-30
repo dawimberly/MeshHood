@@ -1,6 +1,5 @@
-# Build and install MeshHood on a connected Android device.
-# Usage (from anywhere):
-#   powershell -ExecutionPolicy Bypass -File C:\Users\Owner\AndroidStudioProjects\MeshHood\install.ps1
+# Install app on phone (USB or Wi-Fi adb - run connect-wifi.cmd first for Wi-Fi)
+# Usage: connect-wifi.cmd OR plug in USB, then: install.cmd
 
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
@@ -27,7 +26,7 @@ if ($javaHome) {
     $env:Path = "$javaHome\bin;$env:Path"
     Write-Host "Using Java: $javaHome"
 } else {
-    Write-Host "Warning: Java not found on PATH. Gradle may still work if Android Studio JBR is configured."
+    Write-Host "Warning: Java not found on PATH."
 }
 
 Write-Host ""
@@ -51,8 +50,7 @@ if (Test-Path $adb) {
         & $adb shell am start -n com.meshhood/.MainActivity | Out-Null
     } else {
         Write-Host ""
-        Write-Host "APK installed. No USB device detected - open MeshHood manually on the phone." -ForegroundColor Yellow
-        Write-Host "Tip: enable USB debugging and run: $adb devices"
+        Write-Host "APK installed. No adb device - open MeshHood manually or run connect-wifi.cmd" -ForegroundColor Yellow
     }
 } else {
     Write-Host ""

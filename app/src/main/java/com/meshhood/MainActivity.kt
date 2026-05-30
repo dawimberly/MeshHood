@@ -10,7 +10,9 @@ import android.os.Build
 import android.os.Bundle
 import android.os.IBinder
 import android.view.View
-import android.widget.ArrayAdapter
+import android.view.ViewOutlineProvider
+import android.widget.FrameLayout
+import android.widget.ImageView
 import android.widget.Button
 import android.widget.CheckBox
 import android.widget.EditText
@@ -20,10 +22,12 @@ import android.widget.ScrollView
 import android.widget.Spinner
 import android.widget.TextView
 import android.widget.Toast
+import android.widget.ArrayAdapter
 import androidx.recyclerview.widget.LinearLayoutManager
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
 import androidx.activity.OnBackPressedCallback
+import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
@@ -44,6 +48,15 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
     private lateinit var recipientButton: Button
     private lateinit var coordinatorButton: Button
     private lateinit var menuButton: ImageButton
+    private lateinit var profileAvatarButton: FrameLayout
+    private lateinit var profileAvatarImage: ImageView
+    private lateinit var profileAvatarInitial: TextView
+    private lateinit var profileAvatarVerifiedBadge: ImageView
+    private lateinit var dmPeerAvatarButton: FrameLayout
+    private lateinit var dmPeerAvatarImage: ImageView
+    private lateinit var dmPeerAvatarInitial: TextView
+    private lateinit var dmPeerAvatarVerifiedBadge: ImageView
+    private var dmPeerAvatarClickName: String? = null
 
     private var currentRecipient = MeshService.EVERYONE
 
@@ -75,12 +88,39 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         ActivityResultContracts.RequestMultiplePermissions()
     ) { results ->
         val critical = requiredPermissions().filter { it !in optionalPermissions }
-        if (critical.all { results[it] == true }) {
+        val locationOk = hasLocationPermission()
+        val othersOk = critical
+            .filter {
+                it != Manifest.permission.ACCESS_FINE_LOCATION &&
+                    it != Manifest.permission.ACCESS_COARSE_LOCATION
+            }
+            .all { results[it] == true }
+        if (othersOk && locationOk) {
             startAndBindService()
         } else {
             statusText.text = "Permissions denied"
             Toast.makeText(this, "Bluetooth permissions required", Toast.LENGTH_LONG).show()
         }
+    }
+
+    private var dialogPhotoRefresh: (() -> Unit)? = null
+
+    private val pickPhotoLauncher = registerForActivityResult(
+        ActivityResultContracts.PickVisualMedia()
+    ) { uri ->
+        if (uri == null) {
+            dialogPhotoRefresh = null
+            return@registerForActivityResult
+        }
+        val service = meshService
+        if (service == null || !service.saveProfilePhoto(uri)) {
+            Toast.makeText(this, R.string.profile_photo_failed, Toast.LENGTH_SHORT).show()
+        } else {
+            Toast.makeText(this, R.string.profile_photo_saved, Toast.LENGTH_SHORT).show()
+            refreshAvatar()
+            dialogPhotoRefresh?.invoke()
+        }
+        dialogPhotoRefresh = null
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -100,6 +140,26 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         recipientButton = findViewById(R.id.recipientButton)
         coordinatorButton = findViewById(R.id.coordinatorButton)
         menuButton = findViewById(R.id.menuButton)
+        profileAvatarButton = findViewById(R.id.profileAvatarButton)
+        profileAvatarImage = findViewById(R.id.profileAvatarImage)
+        profileAvatarInitial = findViewById(R.id.profileAvatarInitial)
+        profileAvatarVerifiedBadge = findViewById(R.id.profileAvatarVerifiedBadge)
+        dmPeerAvatarButton = findViewById(R.id.dmPeerAvatarButton)
+        dmPeerAvatarImage = findViewById(R.id.dmPeerAvatarImage)
+        dmPeerAvatarInitial = findViewById(R.id.dmPeerAvatarInitial)
+        dmPeerAvatarVerifiedBadge = findViewById(R.id.dmPeerAvatarVerifiedBadge)
+        dmPeerAvatarImage.clipToOutline = true
+        dmPeerAvatarImage.outlineProvider = ViewOutlineProvider.BACKGROUND
+        dmPeerAvatarButton.setOnClickListener {
+            dmPeerAvatarClickName?.let { showProfileDetail(it) }
+        }
+        profileAvatarImage.clipToOutline = true
+        profileAvatarImage.outlineProvider = ViewOutlineProvider.BACKGROUND
+
+        profileAvatarButton.setOnClickListener {
+            val service = meshService ?: return@setOnClickListener
+            showProfileDialog(onboarding = !service.hasProfile())
+        }
 
         sendButton.setOnClickListener { onSendClicked() }
         emergencyButton.setOnClickListener { onEmergencyClicked() }
@@ -137,6 +197,7 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
             perms.add(Manifest.permission.BLUETOOTH)
             perms.add(Manifest.permission.BLUETOOTH_ADMIN)
         }
+        perms.add(Manifest.permission.ACCESS_COARSE_LOCATION)
         perms.add(Manifest.permission.ACCESS_FINE_LOCATION)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
             perms.add(Manifest.permission.POST_NOTIFICATIONS)
@@ -145,10 +206,28 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         return perms.toTypedArray()
     }
 
+    private fun hasLocationPermission(): Boolean {
+        val fine = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_FINE_LOCATION,
+        ) == PackageManager.PERMISSION_GRANTED
+        val coarse = ContextCompat.checkSelfPermission(
+            this,
+            Manifest.permission.ACCESS_COARSE_LOCATION,
+        ) == PackageManager.PERMISSION_GRANTED
+        return fine || coarse
+    }
+
     private fun criticalPermissionsGranted(): Boolean {
-        return requiredPermissions()
+        val nonLocation = requiredPermissions()
             .filter { it !in optionalPermissions }
-            .all { ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED }
+            .filter {
+                it != Manifest.permission.ACCESS_FINE_LOCATION &&
+                    it != Manifest.permission.ACCESS_COARSE_LOCATION
+            }
+        return nonLocation.all {
+            ContextCompat.checkSelfPermission(this, it) == PackageManager.PERMISSION_GRANTED
+        } && hasLocationPermission()
     }
 
     private fun requestPermissionsAndStart() {
@@ -290,10 +369,18 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
             emptyText.visibility = View.GONE
             list.visibility = View.VISIBLE
             list.layoutManager = LinearLayoutManager(this)
-            list.adapter = ConversationAdapter(conversations) { conv ->
-                sheet.dismiss()
-                openDmConversation(conv.peer)
-            }
+            list.adapter = ConversationAdapter(
+                service,
+                conversations,
+                onClick = { conv ->
+                    sheet.dismiss()
+                    openDmConversation(conv.peer)
+                },
+                onAvatarClick = { peer ->
+                    sheet.dismiss()
+                    showProfileDetail(peer)
+                },
+            )
         }
         sheet.setContentView(content)
         sheet.show()
@@ -323,7 +410,7 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         val names = listOf(MeshService.EVERYONE) + groupEntries.map { it.first } + peers
         val labels = listOf(MeshService.EVERYONE) +
             groupEntries.map { it.second } +
-            peers.map { nameWithStars(it, service.reputationOf(it)) }
+            peers.map { peerLabel(it) }
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle("Send to")
             .setItems(labels.toTypedArray()) { _, which ->
@@ -371,9 +458,6 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         val stars = if (r.given > 0) "  ${"⭐".repeat(r.given.coerceAtMost(5))}${if (r.given > 5) "+" else ""}" else ""
         return "$name$stars  ${r.glyph}"
     }
-
-    // Kept for callers that only have a raw reputation count handy.
-    private fun nameWithStars(name: String, rep: Int): String = peerLabel(name)
 
     private fun onFeedLongPress() {
         val options = arrayOf(
@@ -500,7 +584,7 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
             Toast.makeText(this, getString(R.string.toast_no_contacts), Toast.LENGTH_SHORT).show()
             return
         }
-        val labels = peers.map { nameWithStars(it, service.reputationOf(it)) }.toTypedArray()
+        val labels = peers.map { peerLabel(it) }.toTypedArray()
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle(getString(R.string.title_send_thanks))
             .setItems(labels) { _, which ->
@@ -530,6 +614,34 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         if (postal.isNotEmpty()) getString(R.string.live_zip_value, postal)
         else getString(R.string.live_zip_pending)
 
+    private fun launchPhotoPicker(onSaved: (() -> Unit)? = null) {
+        dialogPhotoRefresh = onSaved
+        pickPhotoLauncher.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+    }
+
+    private fun bindProfileAvatar(
+        imageView: ImageView,
+        initialView: TextView,
+        badgeView: ImageView?,
+        displayName: String,
+    ) {
+        AvatarBinder.bind(this, meshService, displayName, imageView, initialView, badgeView)
+    }
+
+    private fun refreshAvatar() {
+        val service = meshService
+        val name = when {
+            service != null && service.hasProfile() -> service.myName
+            else -> "?"
+        }
+        bindProfileAvatar(
+            profileAvatarImage,
+            profileAvatarInitial,
+            profileAvatarVerifiedBadge,
+            name,
+        )
+    }
+
     private fun showProfileDialog(onboarding: Boolean) {
         val service = meshService ?: return
         val profile = service.myProfile()
@@ -550,6 +662,112 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
             hint = "Your name or handle (required)"
             setText(if (onboarding) "" else profile.name)
         }
+
+        val photoRow = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = android.view.Gravity.CENTER_VERTICAL
+            setPadding(0, 0, 0, dp(8))
+        }
+        val previewSize = dp(56)
+        val previewFrame = FrameLayout(this).apply {
+            layoutParams = LinearLayout.LayoutParams(previewSize, previewSize)
+            setBackgroundResource(R.drawable.avatar_stroke)
+            setPadding(dp(2), dp(2), dp(2), dp(2))
+        }
+        val dialogAvatarImage = ImageView(this).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT,
+            )
+            setBackgroundResource(R.drawable.avatar_circle)
+            scaleType = ImageView.ScaleType.CENTER_CROP
+            visibility = View.GONE
+        }
+        val dialogAvatarInitial = TextView(this).apply {
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.MATCH_PARENT,
+            )
+            setBackgroundResource(R.drawable.avatar_circle)
+            gravity = android.view.Gravity.CENTER
+            setTextColor(getColor(R.color.mesh_teal_light))
+            textSize = 22f
+            setTypeface(typeface, android.graphics.Typeface.BOLD)
+        }
+        val dialogVerifiedBadge = ImageView(this).apply {
+            layoutParams = FrameLayout.LayoutParams(dp(18), dp(18)).apply {
+                gravity = android.view.Gravity.BOTTOM or android.view.Gravity.END
+            }
+            setImageResource(R.drawable.ic_verified_badge)
+            contentDescription = getString(R.string.profile_photo_verified_cd)
+            visibility = View.GONE
+        }
+        previewFrame.addView(dialogAvatarImage)
+        previewFrame.addView(dialogAvatarInitial)
+        previewFrame.addView(dialogVerifiedBadge)
+        photoRow.addView(previewFrame)
+
+        val photoActions = LinearLayout(this).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                1f,
+            ).apply { marginStart = dp(12) }
+        }
+        val photoStatus = TextView(this).apply {
+            textSize = 12f
+        }
+        val changePhotoBtn = MaterialButton(this, null, com.google.android.material.R.attr.materialButtonOutlinedStyle).apply {
+            text = if (service.hasProfilePhoto()) {
+                getString(R.string.profile_photo_change)
+            } else {
+                getString(R.string.profile_photo_add)
+            }
+            isAllCaps = false
+        }
+        val removePhotoBtn = Button(this, null, android.R.attr.borderlessButtonStyle).apply {
+            text = getString(R.string.profile_photo_remove)
+            isAllCaps = false
+            visibility = if (service.hasProfilePhoto()) View.VISIBLE else View.GONE
+        }
+        fun refreshDialogAvatar(nameHint: String = nameField.text.toString()) {
+            bindProfileAvatar(dialogAvatarImage, dialogAvatarInitial, dialogVerifiedBadge, nameHint)
+            photoStatus.text = photoStatusLine(service, service.myName)
+            changePhotoBtn.text = if (service.hasProfilePhoto()) {
+                getString(R.string.profile_photo_change)
+            } else {
+                getString(R.string.profile_photo_add)
+            }
+            removePhotoBtn.visibility = if (service.hasProfilePhoto()) View.VISIBLE else View.GONE
+        }
+        changePhotoBtn.setOnClickListener {
+            launchPhotoPicker { refreshDialogAvatar(nameField.text.toString()) }
+        }
+        removePhotoBtn.setOnClickListener {
+            service.clearProfilePhoto()
+            refreshDialogAvatar(nameField.text.toString())
+            refreshAvatar()
+        }
+        photoActions.addView(photoStatus)
+        photoActions.addView(changePhotoBtn)
+        photoActions.addView(removePhotoBtn)
+        photoActions.addView(TextView(this).apply {
+            text = getString(R.string.profile_photo_verify_hint)
+            textSize = 11f
+            setPadding(0, dp(4), 0, 0)
+        })
+        photoRow.addView(photoActions)
+        container.addView(photoRow)
+
+        refreshDialogAvatar(if (onboarding) "" else profile.name)
+        nameField.addTextChangedListener(object : android.text.TextWatcher {
+            override fun beforeTextChanged(s: CharSequence?, start: Int, count: Int, after: Int) {}
+            override fun onTextChanged(s: CharSequence?, start: Int, before: Int, count: Int) {}
+            override fun afterTextChanged(s: android.text.Editable?) {
+                refreshDialogAvatar(s?.toString() ?: "")
+            }
+        })
         container.addView(label("Name"))
         container.addView(nameField)
 
@@ -670,6 +888,7 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
                 val bt = bloodTypes[bloodSpinner.selectedItemPosition].let { if (it == "Unknown") "" else it }
                 service.saveIce(service.getMyIce().copy(bloodType = bt))
                 Toast.makeText(this, "Profile saved", Toast.LENGTH_SHORT).show()
+                refreshAvatar()
                 dialog.dismiss()
             }
             dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_NEGATIVE).setOnClickListener {
@@ -692,23 +911,22 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
             Toast.makeText(this, getString(R.string.toast_no_contacts), Toast.LENGTH_SHORT).show()
             return
         }
-        val labels = names.map { name ->
-            val p = service.profileOf(name)
-            val skillCount = p?.skills?.size ?: 0
-            val self = if (name == service.myName) " (you)" else ""
-            val cap = service.capacityOf(name)
-            val capGlyph = when {
-                service.isExempt(name) -> " 💛"
-                cap == MeshService.CAP_LIMITED || cap == MeshService.CAP_HOMEBOUND -> " 🟡"
-                else -> ""
-            }
-            "$name$self$capGlyph — ${if (skillCount > 0) "$skillCount skill(s)" else "no skills listed"}"
-        }.toTypedArray()
-        androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("👥 ${getString(R.string.title_directory)}")
-            .setItems(labels) { _, which -> showProfileDetail(names[which]) }
-            .setPositiveButton("Close", null)
-            .show()
+        val sheet = BottomSheetDialog(this)
+        val content = layoutInflater.inflate(R.layout.bottom_sheet_directory, null)
+        val list = content.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.directoryList)
+        list.layoutManager = LinearLayoutManager(this)
+        list.adapter = DirectoryAdapter(service, names) { name ->
+            sheet.dismiss()
+            showProfileDetail(name)
+        }
+        sheet.setContentView(content)
+        sheet.show()
+    }
+
+    private fun photoStatusLine(service: MeshService, name: String): String = when {
+        !service.hasPhotoFor(name) -> getString(R.string.profile_photo_none)
+        service.isPhotoVerified(name) -> getString(R.string.profile_photo_verified_cd)
+        else -> getString(R.string.profile_photo_vouch_progress, service.photoVouchCountFor(name))
     }
 
     private fun showProfileDetail(name: String) {
@@ -749,12 +967,45 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
             sb.append(service.iceSummary(ice))
             if (ice.notes.isNotBlank()) sb.append("\nNotes: ${ice.notes}")
         }
+        val header = layoutInflater.inflate(R.layout.profile_detail_header, null)
+        AvatarBinder.bind(
+            this,
+            service,
+            name,
+            header.findViewById(R.id.detailAvatarImage),
+            header.findViewById(R.id.detailAvatarInitial),
+            header.findViewById(R.id.detailVerifiedBadge),
+        )
+        header.findViewById<TextView>(R.id.detailNameText).text =
+            if (name == service.myName) "$name (you)" else name
+        header.findViewById<TextView>(R.id.detailPhotoStatusText).text = photoStatusLine(service, name)
+        val body = TextView(this).apply {
+            text = sb.toString().trim()
+            setPadding(dp(20), dp(12), dp(20), dp(8))
+            textSize = 14f
+        }
+        val scroll = ScrollView(this).apply {
+            addView(LinearLayout(this@MainActivity).apply {
+                orientation = LinearLayout.VERTICAL
+                addView(header)
+                addView(body)
+            })
+        }
         val builder = androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle(name)
-            .setMessage(sb.toString().trim())
+            .setView(scroll)
             .setPositiveButton("Close", null)
         if (name != service.myName) {
             builder.setNeutralButton("🙏 Thank") { _, _ -> service.thank(name) }
+            if (service.hasPhotoFor(name)) {
+                builder.setNegativeButton(getString(R.string.profile_photo_vouch_action)) { _, _ ->
+                    service.vouchProfilePhoto(name)
+                    Toast.makeText(
+                        this,
+                        getString(R.string.profile_photo_vouch_done, name),
+                        Toast.LENGTH_SHORT,
+                    ).show()
+                }
+            }
         }
         builder.show()
     }
@@ -1071,10 +1322,12 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         } else {
             userNameText.visibility = View.GONE
         }
+        refreshAvatar()
         statusText.text = service.status
         val scope = service.feedScope
         val inDm = service.isDmScope(scope)
         feedBackButton.visibility = if (inDm) View.VISIBLE else View.GONE
+        dmPeerAvatarButton.visibility = if (inDm) View.VISIBLE else View.GONE
         areaPickerButton.visibility = if (inDm) View.GONE else View.VISIBLE
         feedTitleText.visibility = if (inDm) View.VISIBLE else View.GONE
         if (!inDm) {
@@ -1088,10 +1341,19 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
             getString(R.string.chats_button)
         }
         if (inDm) {
-            feedTitleText.text = getString(
-                R.string.feed_title_dm,
-                service.peerFromDmScope(scope)
+            val peer = service.peerFromDmScope(scope)
+            dmPeerAvatarClickName = peer
+            feedTitleText.text = getString(R.string.feed_title_dm, peer)
+            AvatarBinder.bind(
+                this,
+                service,
+                peer,
+                dmPeerAvatarImage,
+                dmPeerAvatarInitial,
+                dmPeerAvatarVerifiedBadge,
             )
+        } else {
+            dmPeerAvatarClickName = null
         }
         val log = service.getFeedText(scope)
         messageText.text = when {

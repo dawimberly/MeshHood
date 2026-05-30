@@ -10,4 +10,6 @@
     <dimen name="touch_min">48dp</dimen>
     <dimen name="emergency_height">56dp</dimen>
     <dimen name="header_logo">36dp</dimen>
+    <dimen name="profile_avatar">44dp</dimen>
+    <dimen name="profile_avatar_badge">16dp</dimen>
 </resources>

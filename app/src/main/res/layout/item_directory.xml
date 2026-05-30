@@ -10,7 +10,7 @@
     android:paddingVertical="@dimen/spacing_sm">
 
     <FrameLayout
-        android:id="@+id/avatarButton"
+        android:id="@+id/directoryAvatarButton"
         android:layout_width="@dimen/profile_avatar"
         android:layout_height="@dimen/profile_avatar"
         android:background="@drawable/avatar_stroke"
@@ -21,16 +21,16 @@
         android:padding="2dp">
 
         <ImageView
-            android:id="@+id/avatarImage"
+            android:id="@+id/directoryAvatarImage"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:background="@drawable/avatar_circle"
-                android:contentDescription="@string/peer_profile_cd"
+            android:contentDescription="@string/profile_avatar_cd"
             android:scaleType="centerCrop"
             android:visibility="gone" />
 
         <TextView
-            android:id="@+id/avatarInitial"
+            android:id="@+id/directoryAvatarInitial"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
             android:background="@drawable/avatar_circle"
@@ -40,7 +40,7 @@
             android:textStyle="bold" />
 
         <ImageView
-            android:id="@+id/avatarVerifiedBadge"
+            android:id="@+id/directoryVerifiedBadge"
             android:layout_width="@dimen/profile_avatar_badge"
             android:layout_height="@dimen/profile_avatar_badge"
             android:layout_gravity="bottom|end"
@@ -56,47 +56,24 @@
         android:layout_weight="1"
         android:orientation="vertical">
 
-        <LinearLayout
+        <TextView
+            android:id="@+id/directoryNameText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <TextView
-                android:id="@+id/peerNameText"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:textColor="@color/mesh_on_surface"
-                android:textSize="16sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/timeText"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginStart="@dimen/spacing_sm"
-                android:textColor="@color/mesh_text_dim"
-                android:textSize="12sp" />
-        </LinearLayout>
+            android:ellipsize="end"
+            android:maxLines="1"
+            android:textColor="@color/mesh_on_surface"
+            android:textSize="16sp"
+            android:textStyle="bold" />
 
         <TextView
-            android:id="@+id/previewText"
+            android:id="@+id/directorySubtitleText"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="2dp"
             android:ellipsize="end"
             android:maxLines="1"
             android:textColor="@color/mesh_on_surface_variant"
-            android:textSize="14sp" />
+            android:textSize="13sp" />
     </LinearLayout>
-
-    <ImageView
-        android:layout_width="16dp"
-        android:layout_height="16dp"
-        android:layout_marginStart="@dimen/spacing_sm"
-        android:contentDescription="@string/feed_encrypted"
-        android:src="@drawable/ic_lock_small" />
 </LinearLayout>

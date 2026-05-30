@@ -16,11 +16,46 @@
         android:paddingTop="@dimen/spacing_md"
         android:paddingBottom="@dimen/spacing_sm">
 
-        <ImageView
-            android:layout_width="@dimen/header_logo"
-            android:layout_height="@dimen/header_logo"
-            android:contentDescription="@string/app_name"
-            android:src="@drawable/ic_launcher_foreground" />
+        <FrameLayout
+            android:id="@+id/profileAvatarButton"
+            android:layout_width="@dimen/profile_avatar"
+            android:layout_height="@dimen/profile_avatar"
+            android:background="@drawable/avatar_stroke"
+            android:clickable="true"
+            android:contentDescription="@string/profile_avatar_cd"
+            android:focusable="true"
+            android:foreground="?attr/selectableItemBackgroundBorderless"
+            android:padding="2dp">
+
+            <ImageView
+                android:id="@+id/profileAvatarImage"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/avatar_circle"
+                android:contentDescription="@string/profile_avatar_cd"
+                android:scaleType="centerCrop"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/profileAvatarInitial"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/avatar_circle"
+                android:gravity="center"
+                android:text="?"
+                android:textColor="@color/mesh_teal_light"
+                android:textSize="18sp"
+                android:textStyle="bold" />
+
+            <ImageView
+                android:id="@+id/profileAvatarVerifiedBadge"
+                android:layout_width="@dimen/profile_avatar_badge"
+                android:layout_height="@dimen/profile_avatar_badge"
+                android:layout_gravity="bottom|end"
+                android:contentDescription="@string/profile_photo_verified_cd"
+                android:src="@drawable/ic_verified_badge"
+                android:visibility="gone" />
+        </FrameLayout>
 
         <LinearLayout
             android:layout_width="0dp"
@@ -93,6 +128,49 @@
                 android:scaleType="centerInside"
                 android:src="@drawable/ic_arrow_back"
                 android:visibility="gone" />
+
+            <FrameLayout
+                android:id="@+id/dmPeerAvatarButton"
+                android:layout_width="@dimen/profile_avatar"
+                android:layout_height="@dimen/profile_avatar"
+                android:layout_marginEnd="@dimen/spacing_sm"
+                android:background="@drawable/avatar_stroke"
+                android:clickable="true"
+                android:contentDescription="@string/peer_profile_cd"
+                android:focusable="true"
+                android:foreground="?attr/selectableItemBackgroundBorderless"
+                android:padding="2dp"
+                android:visibility="gone">
+
+                <ImageView
+                    android:id="@+id/dmPeerAvatarImage"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@drawable/avatar_circle"
+                    android:contentDescription="@string/profile_avatar_cd"
+                    android:scaleType="centerCrop"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/dmPeerAvatarInitial"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@drawable/avatar_circle"
+                    android:gravity="center"
+                    android:text="?"
+                    android:textColor="@color/mesh_teal_light"
+                    android:textSize="16sp"
+                    android:textStyle="bold" />
+
+                <ImageView
+                    android:id="@+id/dmPeerAvatarVerifiedBadge"
+                    android:layout_width="@dimen/profile_avatar_badge"
+                    android:layout_height="@dimen/profile_avatar_badge"
+                    android:layout_gravity="bottom|end"
+                    android:contentDescription="@string/profile_photo_verified_cd"
+                    android:src="@drawable/ic_verified_badge"
+                    android:visibility="gone" />
+            </FrameLayout>
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/areaPickerButton"
