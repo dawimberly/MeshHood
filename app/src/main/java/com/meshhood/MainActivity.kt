@@ -469,6 +469,7 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
             "🏅 ${getString(R.string.menu_thanks_board)}",
             "🫂 ${getString(R.string.menu_my_capacity)}",
             "📍 ${getString(R.string.menu_set_area)}",
+            "🗺️ ${getString(R.string.menu_map)}",
             "✏️ ${getString(R.string.menu_edit_profile)}",
             "🆘 ${getString(R.string.menu_emergency_card)}",
             "✓ ${getString(R.string.menu_vouch)}",
@@ -486,14 +487,19 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
                     5 -> onGoodNeighborsBoard()
                     6 -> onMyStatus()
                     7 -> showQuickAreaDialog()
-                    8 -> showProfileDialog(onboarding = false)
-                    9 -> onEmergencyCard()
-                    10 -> onVouch()
-                    11 -> onVouchPhoto()
-                    12 -> onClearFeedRequested()
+                    8 -> onMap()
+                    9 -> showProfileDialog(onboarding = false)
+                    10 -> onEmergencyCard()
+                    11 -> onVouch()
+                    12 -> onVouchPhoto()
+                    13 -> onClearFeedRequested()
                 }
             }
             .show()
+    }
+
+    private fun onMap() {
+        startActivity(Intent(this, MapActivity::class.java))
     }
 
     private fun onCallForHelp() {
@@ -799,6 +805,19 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         container.addView(label("Name"))
         container.addView(nameField)
 
+        container.addView(label(getString(R.string.location_share_label)))
+        val shareLocationCheck = CheckBox(this).apply {
+            isChecked = service.isLocationSharing()
+            text = getString(R.string.location_share_profile_hint)
+            textSize = 12f
+            setOnCheckedChangeListener { _, checked ->
+                if (service.isLocationSharing() != checked) {
+                    service.setLocationSharing(checked)
+                }
+            }
+        }
+        container.addView(shareLocationCheck)
+
         container.addView(label(getString(R.string.profile_area_heading)))
         container.addView(TextView(this).apply {
             text = getString(R.string.profile_area_hint)
@@ -957,6 +976,14 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         else -> getString(R.string.profile_photo_vouch_progress, service.photoVouchCountFor(name))
     }
 
+    private fun locationStatusLine(service: MeshService, name: String): String = when {
+        name == service.myName && service.isLocationSharing() ->
+            getString(R.string.map_sharing_hint)
+        service.peerLocationOf(name) != null ->
+            getString(R.string.profile_location_shared, "recent")
+        else -> getString(R.string.profile_location_hidden)
+    }
+
     private fun showProfileDetail(name: String) {
         val service = meshService ?: return
         val p = service.profileOf(name)
@@ -989,6 +1016,8 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         if (p == null || (p.skills.isEmpty() && p.shares.isEmpty() && p.certs.isEmpty())) {
             if (memberships.isEmpty()) sb.append("No profile details shared yet.")
         }
+        sb.append("\n\nMap: ${locationStatusLine(service, name)}")
+        val peerLoc = service.peerLocationOf(name)
         val ice = service.iceOf(name)
         if (ice != null && !ice.isBlank()) {
             sb.append("\n\n🆘 Emergency Card\n")
@@ -1024,7 +1053,11 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
             .setPositiveButton("Close", null)
         if (name != service.myName) {
             builder.setNeutralButton("🙏 Thank") { _, _ -> service.thank(name) }
-            if (service.hasPhotoFor(name)) {
+            if (peerLoc != null && peerLoc.hasCoords()) {
+                builder.setNegativeButton(getString(R.string.profile_open_maps)) { _, _ ->
+                    MapsHelper.openInMaps(this, peerLoc.lat, peerLoc.lon, name)
+                }
+            } else if (service.hasPhotoFor(name)) {
                 builder.setNegativeButton(getString(R.string.profile_photo_vouch_action)) { _, _ ->
                     service.vouchProfilePhoto(name)
                     Toast.makeText(
@@ -1032,6 +1065,14 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
                         getString(R.string.profile_photo_vouch_done, name),
                         Toast.LENGTH_SHORT,
                     ).show()
+                }
+            }
+        } else if (service.isLocationSharing()) {
+            service.myLocationSnapshot()?.let { snap ->
+                if (snap.hasCoords()) {
+                    builder.setNeutralButton(getString(R.string.profile_open_maps)) { _, _ ->
+                        MapsHelper.openInMaps(this, snap.lat, snap.lon, name)
+                    }
                 }
             }
         }

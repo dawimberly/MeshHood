@@ -41,6 +41,7 @@ MeshHood is a single Android app with a foreground service that runs three paral
 | `profile` | Signed skills/shares/certs |
 | `photothumb` | Signed profile photo thumbnail (SHA-256 hash) |
 | `photovouch` | Signed neighbor attestation for a profile photo |
+| `locshare` / `lochide` | Opt-in live location pin / hide from map |
 | `status` / `vouch` | Capacity claims and neighbor attestation |
 | `groupcreate` / `groupjoin` / `groupmsg` / … | Community overlay |
 | `crew` / `crewjoin` | Help-call coordination |

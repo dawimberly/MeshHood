@@ -27,13 +27,13 @@ object MessageChannel {
     }
 
     fun attachGeo(obj: JSONObject, geo: GeoLocator.Snapshot?) {
-        if (geo == null || geo.postal.isBlank()) return
+        if (geo == null || !geo.hasCoords()) return
         obj.put(
             "geo",
             JSONObject().apply {
                 put("lat", geo.lat)
                 put("lon", geo.lon)
-                put("postal", geo.postal)
+                if (geo.postal.isNotBlank()) put("postal", geo.postal)
                 put("ts", geo.updatedAt)
             },
         )
@@ -41,12 +41,13 @@ object MessageChannel {
 
     fun geoFromEnvelope(obj: JSONObject): GeoLocator.Snapshot? {
         val g = obj.optJSONObject("geo") ?: return null
-        val postal = g.optString("postal", "").trim()
-        if (postal.isEmpty()) return null
+        val lat = g.optDouble("lat", 0.0)
+        val lon = g.optDouble("lon", 0.0)
+        if (kotlin.math.abs(lat) <= 0.001 && kotlin.math.abs(lon) <= 0.001) return null
         return GeoLocator.Snapshot(
-            lat = g.optDouble("lat", 0.0),
-            lon = g.optDouble("lon", 0.0),
-            postal = postal,
+            lat = lat,
+            lon = lon,
+            postal = g.optString("postal", "").trim(),
             updatedAt = g.optLong("ts", 0L),
         )
     }

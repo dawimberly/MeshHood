@@ -212,6 +212,7 @@ class MeshService : Service() {
         private const val KEY_MY_ZONE = "myzone"
         private const val KEY_PHOTO_VOUCH = "photovouches"
         private const val KEY_PEER_PHOTO_HASH = "peerphotohash"
+        private const val KEY_LOCATION_SHARE = "locationshare"
         private const val MAX_LOG_ENTRIES = 300
         private const val MAX_GROUP_PINS = 10
 
@@ -271,6 +272,7 @@ class MeshService : Service() {
             if (!hasProfile()) return@execute
             broadcastProfile()
             if (hasProfilePhoto()) broadcastPhotoThumb()
+            if (isLocationSharing()) broadcastLocShare()
         }
     }
 
@@ -286,6 +288,7 @@ class MeshService : Service() {
             if (geoLocator.currentPostal().isNotEmpty() && geoLocator.currentPostal() != priorPostal) {
                 promoteFeedToFinestIfNeeded()
             }
+            if (isLocationSharing()) broadcastLocShare()
             callback?.onUpdate()
         }
     }
@@ -419,6 +422,125 @@ class MeshService : Service() {
         ZoneContext.broadcastChannel(myZone, geoLocator.currentPostal())
 
     private fun currentGeoSnapshot(): GeoLocator.Snapshot? = geoLocator.current()
+
+    /** Geo attached to public messages only when the user opts in to sharing. */
+    private fun shareableGeoSnapshot(): GeoLocator.Snapshot? =
+        if (isLocationSharing()) currentGeoSnapshot() else null
+
+    fun isLocationSharing(): Boolean = prefs.getBoolean(KEY_LOCATION_SHARE, false)
+
+    fun setLocationSharing(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_LOCATION_SHARE, enabled).apply()
+        if (enabled) {
+            llmExecutor.execute {
+                geoLocator.refresh()
+                broadcastLocShare()
+                callback?.onUpdate()
+            }
+        } else {
+            broadcastLocHide()
+            callback?.onUpdate()
+        }
+    }
+
+    fun myLocationSnapshot(): GeoLocator.Snapshot? = geoLocator.current()
+
+    fun peerLocationOf(name: String): GeoLocator.Snapshot? = PeerLocationStore.get(name)
+
+    fun peersWithLocation(): Map<String, GeoLocator.Snapshot> = PeerLocationStore.allValid()
+
+    private fun notePeerGeo(from: String, geo: GeoLocator.Snapshot?) {
+        if (from == myName || from.isEmpty() || geo == null) return
+        PeerLocationStore.put(from, geo)
+        callback?.onUpdate()
+    }
+
+    fun broadcastLocShare() {
+        val snap = geoLocator.current() ?: geoLocator.refresh() ?: return
+        if (!snap.hasCoords()) return
+        val ts = System.currentTimeMillis()
+        val sig = SignKeys.sign(locSharePayload(myName, snap.lat, snap.lon, snap.postal, ts)) ?: return
+        val id = newId()
+        markSeen(id)
+        flood(locShareEnvelope(id, TTL_DEFAULT, myName, snap, ts, sig))
+    }
+
+    private fun broadcastLocHide() {
+        val ts = System.currentTimeMillis()
+        val sig = SignKeys.sign(locHidePayload(myName, ts)) ?: return
+        val id = newId()
+        markSeen(id)
+        flood(locHideEnvelope(id, TTL_DEFAULT, myName, ts, sig))
+    }
+
+    private fun locSharePayload(from: String, lat: Double, lon: Double, postal: String, ts: Long) =
+        "locshare|$from|$lat|$lon|$postal|$ts"
+
+    private fun locHidePayload(from: String, ts: Long) = "lochide|$from|$ts"
+
+    private fun handleLocShare(obj: JSONObject, ttl: Int) {
+        val from = obj.optString("from", "")
+        val lat = obj.optDouble("lat", 0.0)
+        val lon = obj.optDouble("lon", 0.0)
+        val postal = obj.optString("postal", "")
+        val ts = obj.optLong("kts", 0L)
+        val sig = obj.optString("sig", "")
+        if (from.isEmpty() || from == myName) {
+            relay(obj, ttl)
+            return
+        }
+        val verifyKey = peerSignKeys[from]
+        if (verifyKey == null) {
+            relay(obj, ttl)
+            return
+        }
+        if (!SignKeys.verify(locSharePayload(from, lat, lon, postal, ts), sig, verifyKey)) {
+            android.util.Log.w("Location", "Rejected forged locshare from $from")
+            return
+        }
+        val snap = GeoLocator.Snapshot(lat, lon, postal, ts)
+        notePeerGeo(from, snap)
+        trackPeer(from)
+        relay(obj, ttl)
+    }
+
+    private fun handleLocHide(obj: JSONObject, ttl: Int) {
+        val from = obj.optString("from", "")
+        val ts = obj.optLong("kts", 0L)
+        val sig = obj.optString("sig", "")
+        if (from.isEmpty() || from == myName) {
+            relay(obj, ttl)
+            return
+        }
+        val verifyKey = peerSignKeys[from]
+        if (verifyKey != null) {
+            if (!SignKeys.verify(locHidePayload(from, ts), sig, verifyKey)) {
+                android.util.Log.w("Location", "Rejected forged lochide from $from")
+                return
+            }
+            PeerLocationStore.remove(from)
+            callback?.onUpdate()
+        }
+        relay(obj, ttl)
+    }
+
+    private fun locShareEnvelope(
+        id: String, ttl: Int, from: String, snap: GeoLocator.Snapshot, ts: Long, sig: String,
+    ): String = baseEnvelope("locshare", id, ttl).apply {
+        put("from", from)
+        put("lat", snap.lat)
+        put("lon", snap.lon)
+        put("postal", snap.postal)
+        put("kts", ts)
+        put("sig", sig)
+    }.toString()
+
+    private fun locHideEnvelope(id: String, ttl: Int, from: String, ts: Long, sig: String): String =
+        baseEnvelope("lochide", id, ttl).apply {
+            put("from", from)
+            put("kts", ts)
+            put("sig", sig)
+        }.toString()
 
     fun feedScopeLabel(scope: String): String = when {
         scope == SCOPE_EVERYONE -> EVERYONE
@@ -1944,7 +2066,7 @@ class MeshService : Service() {
             prefs.edit().putString(KEY_FEED_SCOPE, feedScope).apply()
             appendLog("You", text, scope = scope)
             feedCoordinator(myName, text)
-            flood(broadcastEnvelope(id, TTL_DEFAULT, myName, text, scope, currentGeoSnapshot()))
+            flood(broadcastEnvelope(id, TTL_DEFAULT, myName, text, scope, shareableGeoSnapshot()))
             return
         }
 
@@ -2254,6 +2376,10 @@ class MeshService : Service() {
 
             "photovouch" -> handlePhotoVouch(obj, ttl)
 
+            "locshare" -> handleLocShare(obj, ttl)
+
+            "lochide" -> handleLocHide(obj, ttl)
+
             "profile" -> handleProfile(obj, ttl)
 
             "crew" -> {
@@ -2310,6 +2436,7 @@ class MeshService : Service() {
                         text = text,
                         zoneScope = MessageChannel.channelFromGeo(obj),
                     )
+                    MessageChannel.geoFromEnvelope(obj)?.let { notePeerGeo(from, it) }
                 }
                 relay(obj, ttl)
             }

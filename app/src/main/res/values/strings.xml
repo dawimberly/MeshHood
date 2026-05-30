@@ -108,4 +108,21 @@
     <string name="live_zip_value">Current ZIP (from location): %1$s</string>
     <string name="live_zip_pending">Current ZIP: waiting for location…</string>
     <string name="profile_area_hint">State is saved on your profile. ZIP rolls from location for feed order and message tags.</string>
+
+    <string name="menu_map">Map</string>
+    <string name="map_title">Area map</string>
+    <string name="map_share_switch">Share location</string>
+    <string name="map_sharing_hint">Neighbors who share location appear as pins. Yours updates on the mesh (~45 min cache).</string>
+    <string name="map_hidden_hint">Your location is hidden. Turn on Share to help neighbors find you — or stay hidden for safety.</string>
+    <string name="map_open_system">Open in Maps app</string>
+    <string name="map_tile_hint">Map tiles cache temporarily on device (OpenStreetMap). Tap a pin or use Open in Maps for Google/Apple directions.</string>
+    <string name="map_peer_tap">Tap for directions in Maps</string>
+    <string name="map_no_location">Waiting for GPS…</string>
+    <string name="location_share_on_toast">Sharing location with mesh neighbors</string>
+    <string name="location_share_off_toast">Location hidden from neighbors</string>
+    <string name="location_share_label">Share my location on the map</string>
+    <string name="location_share_profile_hint">Off by default for safety. Emergencies always share location.</string>
+    <string name="profile_location_shared">Location shared (~%1$s ago)</string>
+    <string name="profile_location_hidden">Location hidden</string>
+    <string name="profile_open_maps">Open in Maps</string>
 </resources>
