@@ -9,30 +9,42 @@ import time
 from typing import Callable
 
 try:
-    from zeroconf import ServiceBrowser, Zeroconf
+    from zeroconf import ServiceBrowser, ServiceListener, Zeroconf
 except ImportError:
     Zeroconf = None  # type: ignore
+    ServiceListener = object  # type: ignore
 
 SERVICE_TYPE = "_meshhood._tcp.local."
 
 
-def discover_phones(timeout: float = 12.0) -> list[tuple[str, int, str]]:
+def discover_phones(timeout: float = 15.0, retries: int = 2) -> list[tuple[str, int, str]]:
     """Return [(host, port, service_name), ...] for MeshHood LAN adverts."""
     if Zeroconf is None:
         print("  (install zeroconf: pip install zeroconf)", flush=True)
         return []
 
+    for attempt in range(retries):
+        found = _discover_once(timeout)
+        if found:
+            return found
+        if attempt + 1 < retries:
+            time.sleep(2.0)
+    return []
+
+
+def _discover_once(timeout: float) -> list[tuple[str, int, str]]:
     found: list[tuple[str, int, str]] = []
     lock = threading.Lock()
 
-    class Listener:
+    class Listener(ServiceListener):
         def add_service(self, zc: Zeroconf, type_: str, name: str) -> None:
-            info = zc.get_service_info(type_, name, timeout=4000)
+            info = zc.get_service_info(type_, name, timeout=5000)
             if not info or not info.addresses:
                 return
             host = socket.inet_ntoa(info.addresses[0])
             with lock:
-                found.append((host, info.port, name))
+                if not any(h == host and p == info.port for h, p, _ in found):
+                    found.append((host, info.port, name))
 
         def remove_service(self, zc: Zeroconf, type_: str, name: str) -> None:
             pass

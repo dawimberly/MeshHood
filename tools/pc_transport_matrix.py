@@ -78,7 +78,7 @@ def test_lan(auto: bool) -> bool:
     if not auto:
         input("  Press Enter to scan LAN… ")
 
-    peers = mesh_lan.discover_phones(12.0)
+    peers = mesh_lan.discover_phones(15.0, retries=2)
     if not peers:
         print("  ❌ LAN: no _meshhood._tcp service found", flush=True)
         print("     Check: phone on Wi‑Fi, MeshHood running, same network as PC.", flush=True)
