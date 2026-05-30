@@ -472,6 +472,7 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
             "✏️ ${getString(R.string.menu_edit_profile)}",
             "🆘 ${getString(R.string.menu_emergency_card)}",
             "✓ ${getString(R.string.menu_vouch)}",
+            "📷 ${getString(R.string.menu_vouch_photo)}",
             "🧹 ${getString(R.string.menu_clear_feed)}"
         )
         androidx.appcompat.app.AlertDialog.Builder(this)
@@ -488,7 +489,8 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
                     8 -> showProfileDialog(onboarding = false)
                     9 -> onEmergencyCard()
                     10 -> onVouch()
-                    11 -> onClearFeedRequested()
+                    11 -> onVouchPhoto()
+                    12 -> onClearFeedRequested()
                 }
             }
             .show()
@@ -548,6 +550,32 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
             .setItems(labels) { _, which ->
                 service.vouchFor(candidates[which])
                 Toast.makeText(this, "Vouched for ${candidates[which]} ✓", Toast.LENGTH_SHORT).show()
+            }
+            .show()
+    }
+
+    private fun onVouchPhoto() {
+        val service = meshService ?: return
+        val candidates = service.getPeers().filter { service.hasPhotoFor(it) }
+        if (candidates.isEmpty()) {
+            Toast.makeText(this, getString(R.string.toast_no_photos_to_vouch), Toast.LENGTH_SHORT).show()
+            return
+        }
+        val labels = candidates.map { name ->
+            val verified = if (service.isPhotoVerified(name)) " ✓" else ""
+            val count = service.photoVouchCountFor(name)
+            "$name$verified ($count/2 vouches)"
+        }.toTypedArray()
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(getString(R.string.title_vouch_photo))
+            .setItems(labels) { _, which ->
+                val name = candidates[which]
+                service.vouchProfilePhoto(name)
+                Toast.makeText(
+                    this,
+                    getString(R.string.profile_photo_vouch_done, name),
+                    Toast.LENGTH_SHORT,
+                ).show()
             }
             .show()
     }

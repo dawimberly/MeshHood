@@ -30,6 +30,7 @@
     <string name="status_connecting">Connecting mesh…</string>
     <string name="status_advertising">Advertising… waiting to connect</string>
     <string name="status_connected">Connected</string>
+    <string name="status_neighbors">%1$d neighbors</string>
 
     <string name="default_contact_name">Contact</string>
     <string name="log_wrong_key">[encrypted — wrong area key]</string>
@@ -46,7 +47,8 @@
     <string name="menu_send_thanks">Send thanks</string>
     <string name="menu_directory">Directory</string>
     <string name="menu_thanks_board">Thanks board</string>
-    <string name="menu_vouch">Vouch for someone</string>
+    <string name="menu_vouch">Vouch for capacity</string>
+    <string name="menu_vouch_photo">Vouch for photo</string>
     <string name="menu_call_help">Call for help</string>
     <string name="menu_my_groups">My groups</string>
     <string name="menu_create_group">Create group</string>
@@ -64,7 +66,7 @@
     <string name="profile_photo_vouch_progress">%1$d of 2 neighbor confirmations</string>
     <string name="profile_photo_vouch_action">Vouch for photo</string>
     <string name="profile_photo_vouch_done">Vouched for %1$s\'s photo</string>
-    <string name="profile_photo_verify_hint">Neighbors who know you in person can vouch for your photo from the Directory.</string>
+    <string name="profile_photo_verify_hint">Neighbors who know you can vouch from Directory or Menu → Vouch for photo.</string>
     <string name="profile_photo_unverified">Photo not verified yet</string>
     <string name="menu_set_area">Set my area</string>
     <string name="menu_emergency_card">Emergency card</string>
@@ -74,10 +76,12 @@
     <string name="title_send_thanks">Send thanks</string>
     <string name="title_directory">Directory</string>
     <string name="title_vouch_status">Vouch for capacity status</string>
+    <string name="title_vouch_photo">Vouch for profile photo</string>
     <string name="title_call_help">Call for help</string>
 
     <string name="toast_vouch_confirm">Others can vouch to confirm your status</string>
     <string name="toast_no_limited_status">No one has declared a limited status yet</string>
+    <string name="toast_no_photos_to_vouch">No neighbors with photos to vouch for yet</string>
     <string name="toast_no_contacts">No contacts yet</string>
     <string name="toast_certs_note">Certifications (self-declared; others can verify later)</string>
 

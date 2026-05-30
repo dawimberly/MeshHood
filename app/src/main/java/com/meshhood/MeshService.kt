@@ -255,11 +255,23 @@ class MeshService : Service() {
         startBle()
         startWifiDirect()
         startLan()
+        composeStatus()
         // Load the optional on-device LLM in the background; falls back silently.
         llmExecutor.execute {
             if (LlmEngine.tryLoad(applicationContext)) callback?.onUpdate()
         }
         refreshLiveGeoAsync()
+        announcePresenceDelayed()
+    }
+
+    /** Re-broadcast profile + photo after transports start so nearby nodes sync. */
+    private fun announcePresenceDelayed() {
+        llmExecutor.execute {
+            Thread.sleep(5000)
+            if (!hasProfile()) return@execute
+            broadcastProfile()
+            if (hasProfilePhoto()) broadcastPhotoThumb()
+        }
     }
 
     /** Rolling ZIP from GPS — merged with saved anchor in [effectiveZone]. */
@@ -565,9 +577,12 @@ class MeshService : Service() {
     }
 
     private fun composeStatus() {
-        status = listOf(bleStatus, wifiStatus, lanStatus)
-            .filter { it.isNotEmpty() }
-            .joinToString("  •  ")
+        val parts = mutableListOf<String>()
+        listOf(bleStatus, wifiStatus, lanStatus).filterTo(parts) { it.isNotEmpty() }
+        if (knownPeers.isNotEmpty()) {
+            parts.add(getString(R.string.status_neighbors, knownPeers.size))
+        }
+        status = parts.joinToString("  •  ")
         updateNotification(status)
         callback?.onUpdate()
     }
@@ -2189,7 +2204,7 @@ class MeshService : Service() {
         knownPeers.add(from)
         if (knownPeers.size != sizeBefore) {
             savePeers()
-            callback?.onUpdate()
+            composeStatus()
         }
     }
 

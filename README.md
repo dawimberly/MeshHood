@@ -29,6 +29,15 @@ Disasters knock out centralized infrastructure first. MeshHood explores what a *
 | **Signed trust** | Ed25519 profiles, kudos, group admin actions |
 | **Groups** | Community crews with admin verify + pin (no speech moderation) |
 | **Resource brain** | Rule-based coordinator + optional on-device Gemma LLM |
+| **Profile avatars** | Local photo + mesh thumbnail; neighbor vouch verification |
+
+## Docs
+
+| Document | Purpose |
+|----------|---------|
+| [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Technical design |
+| [docs/PITCH.md](docs/PITCH.md) | Investor / partner pitch |
+| [docs/PATENT-BRIEF.md](docs/PATENT-BRIEF.md) | Provisional patent talking points |
 
 ## UI: Area vs Chats
 

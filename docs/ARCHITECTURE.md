@@ -39,6 +39,8 @@ MeshHood is a single Android app with a foreground service that runs three paral
 | `key` | X25519 + Ed25519 public key handshake |
 | `kudos` | Signed reputation credit |
 | `profile` | Signed skills/shares/certs |
+| `photothumb` | Signed profile photo thumbnail (SHA-256 hash) |
+| `photovouch` | Signed neighbor attestation for a profile photo |
 | `status` / `vouch` | Capacity claims and neighbor attestation |
 | `groupcreate` / `groupjoin` / `groupmsg` / … | Community overlay |
 | `crew` / `crewjoin` | Help-call coordination |
