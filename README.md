@@ -19,8 +19,8 @@ Disasters knock out centralized infrastructure first. MeshHood explores what a *
 
 | Capability | Detail |
 |------------|--------|
-| **Emergency SOS** | One tap broadcasts help + your ICE medical card to the mesh |
-| **Multi-transport** | BLE + WiFi Direct + LAN run in parallel for best reach |
+| **Emergency SOS** | **Alert** tab (confirm dialog), lock-screen widget, or app shortcut — broadcasts help + ICE card; optional SMS to ICE contact when cell is available |
+| **Multi-transport** | BLE + WiFi Direct + LAN run in parallel; cellular used for emergency SMS fallback |
 | **Multi-hop relay** | Messages hop across phones (TTL + dedup) to extend range |
 | **Private DMs** | X25519 per-pair encryption; relays cannot read content |
 | **Chats inbox** | Private threads in **Chats** — separate from the public **Area** feed |
@@ -31,6 +31,7 @@ Disasters knock out centralized infrastructure first. MeshHood explores what a *
 | **Resource brain** | Rule-based coordinator + optional on-device Gemma LLM |
 | **Profile avatars** | Local photo + mesh thumbnail; neighbor vouch verification |
 | **Area map** | Google Maps in-app; share/hide location on the mesh; open in Google Maps for directions |
+| **Bottom nav** | Home (feed), Nearby (map), Resources (coordinator), Alert (SOS) |
 
 ## Docs
 
@@ -46,9 +47,36 @@ Disasters knock out centralized infrastructure first. MeshHood explores what a *
 | Control | What it is |
 |---------|------------|
 | **Area ▼** | Public feed — Everyone, geographic levels, and groups |
-| **Chats** | Private direct-message inbox (most recent first) |
+| **Chats** (header icon) | Private direct-message inbox (most recent first) |
+| **Bottom nav** | **Home** feed · **Nearby** map · **Resources** coordinator · **Alert** SOS |
 
 Public broadcasts stay in **Area**. DMs never appear in the Area dropdown.
+
+### Main screen layout
+
+```
+┌─────────────────────────────────────┐
+│  Mesh ▂▄▆█              (signal)    │  ← transport strip
+│  Area ▼              💬  👤  ⋮     │  ← locality + chats + profile + menu
+├─────────────────────────────────────┤
+│  Area feed (scroll)                 │
+├─────────────────────────────────────┤
+│  Home  Nearby  Resources  Alert     │  ← bottom nav
+│  Everyone              Resources    │  ← recipient + coordinator chips
+│  [ message.................... ] ➤  │  ← composer
+└─────────────────────────────────────┘
+```
+
+### Emergency
+
+| Entry point | What it does |
+|-------------|--------------|
+| **Alert** tab (bottom nav) | Confirm dialog → mesh broadcast + ICE card |
+| **Home-screen SOS widget** | Opens lock-screen emergency screen (no unlock needed) |
+| **App shortcut** | Same lock-screen flow |
+| **⋮ menu → Emergency card** | Edit private ICE/medical info (shared only when you send SOS) |
+
+SOS is intentionally behind a confirm step in the main app. The widget/shortcut are for when you cannot unlock the phone.
 
 ### Geographic area
 
@@ -71,16 +99,19 @@ Phone A ←BLE/WiFi/LAN→ Phone B ←→ Phone C
 
 ### Windows PC (clone from GitHub)
 
-Anyone with a Windows PC + USB Android phone can use this repo:
+Anyone with a Windows PC + Android phone can use this repo:
 
 ```powershell
 git clone https://github.com/dawimberly/MeshHood.git
 cd MeshHood
 
-# Install app on phone (USB debugging on, MeshHood will open)
+# Install app on phone (USB or Wi-Fi adb — see below)
 .\install.cmd
 
-# Optional: simulate Maria + Rosa over BLE (phone running MeshHood)
+# Or: build + install + open app (same as install when a device is connected)
+.\run.cmd
+
+# Optional: simulate Maria + Rosa over BLE (phone running MeshHood, Advertising)
 cd tools
 pip install -r requirements.txt
 python pc_two_phone_sim.py
@@ -88,9 +119,26 @@ python pc_two_phone_sim.py
 
 | File | Purpose |
 |------|---------|
-| `install.ps1` / `install.cmd` | Build + install APK; finds Android Studio Java |
+| `install.ps1` / `install.cmd` | Build + install APK; waits for adb, retries on failure |
+| `run.ps1` / `run.cmd` | Same as install when a phone is connected |
+| `connect-wifi.ps1` / `connect-wifi.cmd` | Pair/connect phone over Wi-Fi adb (no USB cable) |
 | `tools/install.cmd` | Same install when your shell is in `tools\` |
 | `tools/pc_two_phone_sim.py` | Guided 2-phone BLE sim (Maria + Rosa) |
+
+#### Install over USB
+
+1. Phone: **Developer options → USB debugging ON**
+2. Plug in USB, unlock phone, tap **Allow** on the debugging prompt
+3. PC: `.\install.cmd`
+
+#### Install over Wi-Fi (no cable)
+
+1. Phone and PC on the **same Wi-Fi**
+2. Phone: **Developer options → Wireless debugging ON**
+3. PC: `.\connect-wifi.cmd` — enter pairing IP:port + 6-digit code (first time), then connect IP:port
+4. PC: `.\run.cmd` or `.\install.cmd`
+
+Leave **USB debugging ON**; you do not need to toggle it off between sessions.
 
 ### Android
 
@@ -128,9 +176,9 @@ cd MeshHood
 
 1. Open MeshHood, grant permissions, and complete profile setup.
 2. **Set my area** (long-press feed or **Area ▼**) — pick your state; ZIP fills from location.
-3. Leave the app running — the foreground service keeps the mesh alive.
+3. Leave the app running — the foreground service keeps the mesh alive; status shows **Advertising**.
 
-Send to **Everyone** for the public Area feed; use **Chats** for private messages.
+Send to **Everyone** for the public Area feed; use **Chats** for private messages. Tap **Resources** in the bottom nav (or the amber chip above the composer) for coordinator matches.
 
 ### PC test harness (optional)
 
@@ -166,15 +214,23 @@ Persistent simulated identities live in `tools/sim_identities/` (gitignored).
 
 ```
 MeshHood/
-├── install.ps1 / install.cmd   # Windows: build + install on phone
+├── install.ps1 / install.cmd       # Windows: build + install on phone
+├── run.ps1 / run.cmd               # Install when adb device is connected
+├── connect-wifi.ps1 / .cmd         # Wi-Fi adb pairing (no USB)
 ├── app/src/main/java/com/meshhood/
-│   ├── MeshService.kt      # mesh core, feed scopes, protocol
-│   ├── MeshZone.kt         # geographic hierarchy
-│   ├── GeoLocator.kt       # GPS → rolling ZIP
-│   ├── MessageChannel.kt   # channel + geo envelope fields
-│   └── MainActivity.kt     # Area ▼, Chats inbox, profile
-├── tools/                  # Python BLE tests + tools/install.cmd
+│   ├── MeshService.kt              # mesh core, feed scopes, protocol
+│   ├── CellularTransport.kt        # emergency SMS to ICE contact
+│   ├── EmergencyActivity.kt        # lock-screen SOS screen
+│   ├── EmergencyWidget.kt          # home-screen SOS widget
+│   ├── FeedStyler.kt               # feed visual language
+│   ├── MeshZone.kt                 # geographic hierarchy
+│   ├── GeoLocator.kt               # GPS → rolling ZIP
+│   ├── MessageChannel.kt           # channel + geo envelope fields
+│   └── MainActivity.kt             # Area ▼, Chats, bottom nav, composer
+├── tools/                          # Python BLE tests + tools/install.cmd
 ├── docs/ARCHITECTURE.md
+├── docs/UI-DESIGN.md
+├── local.properties.example        # MAPS_API_KEY template
 ├── SECURITY.md
 └── LICENSE
 ```
