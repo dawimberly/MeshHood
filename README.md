@@ -38,6 +38,7 @@ Disasters knock out centralized infrastructure first. MeshHood explores what a *
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Technical design |
 | [docs/PITCH.md](docs/PITCH.md) | Investor / partner pitch |
 | [docs/PATENT-BRIEF.md](docs/PATENT-BRIEF.md) | Provisional patent talking points |
+| [docs/TRANSPORT-TESTS.md](docs/TRANSPORT-TESTS.md) | BLE / WiFi / cellular test matrix |
 
 ## UI: Area vs Chats
 
@@ -149,6 +150,8 @@ Simulate **two neighbors** (Maria + Rosa) from your PC on the same BLE link:
 ```bash
 python pc_two_phone_sim.py           # guided — follow steps on screen + phone
 python pc_two_phone_sim.py --auto    # hands-off demo (~45s)
+python pc_transport_matrix.py        # BLE + WiFi LAN transport tests (1 phone + PC)
+python pc_transport_matrix.py --auto
 python pc_maria_reply.py             # stable Maria identity for DM tests
 ```
 
