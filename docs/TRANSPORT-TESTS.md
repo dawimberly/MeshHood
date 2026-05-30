@@ -9,7 +9,7 @@ What you can prove with **one Android phone** and **one PC**, vs what needs more
 | **Bluetooth LE** | GATT notify/write | ✅ `tools/pc_*.py` | ✅ | PC simulates Maria/Rosa |
 | **WiFi LAN** | mDNS `_meshhood._tcp` + TCP | ✅ `pc_transport_matrix.py` | ✅ | Same home/community Wi‑Fi |
 | **WiFi Direct** | Android P2P | ❌ | ✅ | PC cannot join P2P group |
-| **Cellular** | — | ❌ | ❌ | **Not implemented** (roadmap) |
+| **Cellular** | SMS emergency + link monitor | ⏭ partial | ⏭ | ICE SMS fallback; peer relay TBD |
 
 Every outgoing message on the phone is **fanned out** on all active transports (`MeshService.notifySubscribers`). Incoming messages are **deduped by message id** so LAN + BLE duplicates are harmless.
 

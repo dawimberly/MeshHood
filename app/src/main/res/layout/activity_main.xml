@@ -3,23 +3,224 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/mesh_bg"
+    android:background="@drawable/bg_app"
     android:orientation="vertical">
 
-    <!-- Top bar: identity + mesh status -->
+    <!-- Header -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingHorizontal="@dimen/spacing_md"
-        android:paddingTop="@dimen/spacing_md"
-        android:paddingBottom="@dimen/spacing_sm">
+        android:orientation="vertical"
+        android:paddingTop="10dp">
+
+        <!-- Phone-style status: bars + network label, top right -->
+        <FrameLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:paddingHorizontal="@dimen/spacing_md"
+            android:paddingBottom="2dp">
+
+            <LinearLayout
+                android:id="@+id/transportStrip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="end|center_vertical"
+                android:contentDescription="@string/mesh_status_cd"
+                android:gravity="center_vertical"
+                android:orientation="horizontal">
+
+                <TextView
+                    android:id="@+id/neighborCountText"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="5dp"
+                    android:fontFamily="sans-serif-medium"
+                    android:textColor="@color/mesh_on_surface_variant"
+                    android:textSize="9sp"
+                    android:visibility="gone" />
+
+                <LinearLayout
+                    android:id="@+id/signalBarsContainer"
+                    android:layout_width="wrap_content"
+                    android:layout_height="14dp"
+                    android:gravity="bottom"
+                    android:orientation="horizontal">
+
+                    <View
+                        android:id="@+id/signalBar1"
+                        android:layout_width="2.5dp"
+                        android:layout_height="3.5dp"
+                        android:layout_marginEnd="1.5dp"
+                        android:background="@drawable/signal_bar" />
+
+                    <View
+                        android:id="@+id/signalBar2"
+                        android:layout_width="2.5dp"
+                        android:layout_height="5.5dp"
+                        android:layout_marginEnd="1.5dp"
+                        android:background="@drawable/signal_bar" />
+
+                    <View
+                        android:id="@+id/signalBar3"
+                        android:layout_width="2.5dp"
+                        android:layout_height="7.5dp"
+                        android:layout_marginEnd="1.5dp"
+                        android:background="@drawable/signal_bar" />
+
+                    <View
+                        android:id="@+id/signalBar4"
+                        android:layout_width="2.5dp"
+                        android:layout_height="9.5dp"
+                        android:layout_marginEnd="1.5dp"
+                        android:background="@drawable/signal_bar" />
+
+                    <View
+                        android:id="@+id/signalBar5"
+                        android:layout_width="2.5dp"
+                        android:layout_height="11.5dp"
+                        android:background="@drawable/signal_bar" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/meshNetworkLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginStart="5dp"
+                    android:fontFamily="sans-serif-medium"
+                    android:letterSpacing="0.04"
+                    android:text="@string/mesh_network_label"
+                    android:textAllCaps="true"
+                    android:textColor="@color/mesh_on_surface"
+                    android:textSize="10sp"
+                    android:textStyle="bold" />
+            </LinearLayout>
+        </FrameLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingHorizontal="@dimen/spacing_md"
+            android:paddingBottom="@dimen/spacing_sm">
+
+        <ImageButton
+            android:id="@+id/feedBackButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:background="@drawable/icon_btn_circle"
+            android:contentDescription="@string/feed_back_area"
+            android:padding="8dp"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_arrow_back"
+            android:visibility="gone"
+            app:tint="@color/mesh_on_surface" />
+
+        <FrameLayout
+            android:id="@+id/dmPeerAvatarButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginEnd="@dimen/spacing_sm"
+            android:background="@drawable/avatar_stroke"
+            android:clickable="true"
+            android:contentDescription="@string/peer_profile_cd"
+            android:focusable="true"
+            android:foreground="?attr/selectableItemBackgroundBorderless"
+            android:padding="2dp"
+            android:visibility="gone">
+
+            <ImageView
+                android:id="@+id/dmPeerAvatarImage"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/avatar_circle"
+                android:contentDescription="@string/profile_avatar_cd"
+                android:scaleType="centerCrop"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/dmPeerAvatarInitial"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:background="@drawable/avatar_circle"
+                android:gravity="center"
+                android:text="?"
+                android:textColor="@color/mesh_teal_light"
+                android:textSize="15sp"
+                android:textStyle="bold" />
+
+            <ImageView
+                android:id="@+id/dmPeerAvatarVerifiedBadge"
+                android:layout_width="@dimen/profile_avatar_badge"
+                android:layout_height="@dimen/profile_avatar_badge"
+                android:layout_gravity="bottom|end"
+                android:contentDescription="@string/profile_photo_verified_cd"
+                android:src="@drawable/ic_verified_badge"
+                android:visibility="gone" />
+        </FrameLayout>
+
+        <LinearLayout
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:orientation="vertical">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/areaPickerButton"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_gravity="start"
+                android:minHeight="0dp"
+                android:minWidth="0dp"
+                android:paddingHorizontal="0dp"
+                android:paddingVertical="0dp"
+                android:text="@string/area_picker_button"
+                android:textAllCaps="false"
+                android:textColor="@color/mesh_on_surface"
+                android:textSize="24sp"
+                android:textStyle="bold"
+                app:icon="@drawable/ic_expand_more"
+                app:iconGravity="end"
+                app:iconPadding="4dp"
+                app:iconSize="20dp"
+                app:iconTint="@color/mesh_on_surface_variant" />
+
+            <TextView
+                android:id="@+id/feedTitleText"
+                style="@style/MeshHoodTextTitle"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:text="@string/feed_title"
+                android:textSize="22sp"
+                android:visibility="gone" />
+
+            <TextView
+                android:id="@+id/userNameText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/mesh_on_surface_variant"
+                android:textSize="12sp"
+                android:visibility="gone" />
+        </LinearLayout>
+
+        <ImageButton
+            android:id="@+id/chatsIconButton"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="4dp"
+            android:background="@drawable/icon_btn_circle"
+            android:contentDescription="@string/chats_button"
+            android:padding="9dp"
+            android:scaleType="centerInside"
+            android:src="@drawable/ic_chat"
+            app:tint="@color/mesh_on_surface_variant" />
 
         <FrameLayout
             android:id="@+id/profileAvatarButton"
-            android:layout_width="@dimen/profile_avatar"
-            android:layout_height="@dimen/profile_avatar"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="6dp"
             android:background="@drawable/avatar_stroke"
             android:clickable="true"
             android:contentDescription="@string/profile_avatar_cd"
@@ -44,7 +245,7 @@
                 android:gravity="center"
                 android:text="?"
                 android:textColor="@color/mesh_teal_light"
-                android:textSize="18sp"
+                android:textSize="16sp"
                 android:textStyle="bold" />
 
             <ImageView
@@ -57,206 +258,93 @@
                 android:visibility="gone" />
         </FrameLayout>
 
-        <LinearLayout
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="@dimen/spacing_sm"
-            android:layout_weight="1"
-            android:orientation="vertical">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/app_name"
-                android:textColor="@color/mesh_on_surface"
-                android:textSize="18sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/userNameText"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:textColor="@color/mesh_on_surface_variant"
-                android:textSize="14sp"
-                android:visibility="gone" />
-
-            <TextView
-                android:id="@+id/statusText"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:ellipsize="end"
-                android:maxLines="2"
-                android:text="@string/status_connecting"
-                android:textColor="@color/mesh_success"
-                android:textSize="12sp" />
-        </LinearLayout>
-
         <ImageButton
             android:id="@+id/menuButton"
-            android:layout_width="@dimen/touch_min"
-            android:layout_height="@dimen/touch_min"
-            android:background="?attr/selectableItemBackgroundBorderless"
+            android:layout_width="40dp"
+            android:layout_height="40dp"
+            android:layout_marginStart="4dp"
+            android:background="@drawable/icon_btn_circle"
             android:contentDescription="@string/menu"
-            android:padding="@dimen/spacing_sm"
+            android:padding="9dp"
             android:scaleType="centerInside"
-            android:src="@drawable/ic_more_vert" />
+            android:src="@drawable/ic_more_vert"
+            app:tint="@color/mesh_on_surface_variant" />
+        </LinearLayout>
     </LinearLayout>
 
-    <!-- Feed -->
+    <include layout="@layout/include_header_accent" />
+
+    <TextView
+        android:id="@+id/statusText"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:paddingHorizontal="@dimen/spacing_md"
+        android:text="@string/status_connecting"
+        android:textColor="@color/mesh_emergency"
+        android:textSize="12sp"
+        android:visibility="gone" />
+
+    <!-- Feed card -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
         android:orientation="vertical"
-        android:paddingHorizontal="@dimen/spacing_md">
+        android:paddingHorizontal="12dp"
+        android:paddingTop="8dp"
+        android:paddingBottom="4dp">
 
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center_vertical"
-            android:orientation="horizontal">
-
-            <ImageButton
-                android:id="@+id/feedBackButton"
-                android:layout_width="@dimen/touch_min"
-                android:layout_height="@dimen/touch_min"
-                android:background="?attr/selectableItemBackgroundBorderless"
-                android:contentDescription="@string/feed_back_area"
-                android:padding="@dimen/spacing_xs"
-                android:scaleType="centerInside"
-                android:src="@drawable/ic_arrow_back"
-                android:visibility="gone" />
-
-            <FrameLayout
-                android:id="@+id/dmPeerAvatarButton"
-                android:layout_width="@dimen/profile_avatar"
-                android:layout_height="@dimen/profile_avatar"
-                android:layout_marginEnd="@dimen/spacing_sm"
-                android:background="@drawable/avatar_stroke"
-                android:clickable="true"
-                android:contentDescription="@string/peer_profile_cd"
-                android:focusable="true"
-                android:foreground="?attr/selectableItemBackgroundBorderless"
-                android:padding="2dp"
-                android:visibility="gone">
-
-                <ImageView
-                    android:id="@+id/dmPeerAvatarImage"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:background="@drawable/avatar_circle"
-                    android:contentDescription="@string/profile_avatar_cd"
-                    android:scaleType="centerCrop"
-                    android:visibility="gone" />
-
-                <TextView
-                    android:id="@+id/dmPeerAvatarInitial"
-                    android:layout_width="match_parent"
-                    android:layout_height="match_parent"
-                    android:background="@drawable/avatar_circle"
-                    android:gravity="center"
-                    android:text="?"
-                    android:textColor="@color/mesh_teal_light"
-                    android:textSize="16sp"
-                    android:textStyle="bold" />
-
-                <ImageView
-                    android:id="@+id/dmPeerAvatarVerifiedBadge"
-                    android:layout_width="@dimen/profile_avatar_badge"
-                    android:layout_height="@dimen/profile_avatar_badge"
-                    android:layout_gravity="bottom|end"
-                    android:contentDescription="@string/profile_photo_verified_cd"
-                    android:src="@drawable/ic_verified_badge"
-                    android:visibility="gone" />
-            </FrameLayout>
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/areaPickerButton"
-                style="@style/Widget.MeshHood.Chip"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="@dimen/spacing_sm"
-                android:text="@string/area_picker_button"
-                app:icon="@drawable/ic_expand_more"
-                app:iconGravity="end"
-                app:iconPadding="4dp"
-                app:iconSize="20dp" />
+            android:orientation="horizontal"
+            android:paddingHorizontal="4dp"
+            android:paddingBottom="8dp">
 
             <TextView
-                android:id="@+id/feedTitleText"
+                android:id="@+id/feedSectionLabel"
+                style="@style/MeshHoodTextSection"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
                 android:layout_weight="1"
-                android:text="@string/feed_title"
-                android:textColor="@color/mesh_on_surface_variant"
-                android:textSize="13sp"
-                android:textStyle="bold"
+                android:text="@string/feed_section_label" />
+
+            <TextView
+                android:id="@+id/feedPostCountText"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:textColor="@color/mesh_text_dim"
+                android:textSize="11sp"
                 android:visibility="gone" />
-
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/chatsButton"
-                style="@style/Widget.MeshHood.Chip"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="@dimen/spacing_sm"
-                android:text="@string/chats_button"
-                app:icon="@drawable/ic_chat"
-                app:iconGravity="textStart"
-                app:iconPadding="6dp"
-                app:iconSize="18dp" />
-
-            <LinearLayout
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:background="@drawable/status_pill"
-                android:gravity="center_vertical"
-                android:orientation="horizontal"
-                android:paddingHorizontal="10dp"
-                android:paddingVertical="4dp">
-
-                <ImageView
-                    android:layout_width="14dp"
-                    android:layout_height="14dp"
-                    android:contentDescription="@string/feed_encrypted"
-                    android:src="@drawable/ic_lock_small" />
-
-                <TextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:layout_marginStart="4dp"
-                    android:text="@string/feed_encrypted"
-                    android:textColor="@color/mesh_teal"
-                    android:textSize="11sp"
-                    android:textStyle="bold" />
-            </LinearLayout>
         </LinearLayout>
 
         <ScrollView
             android:id="@+id/logScroll"
             android:layout_width="match_parent"
             android:layout_height="0dp"
-            android:layout_marginTop="@dimen/spacing_sm"
             android:layout_weight="1"
-            android:background="@drawable/card_bg"
+            android:background="@drawable/feed_panel_bg"
             android:clipToPadding="false"
             android:fillViewport="true"
-            android:padding="@dimen/spacing_md"
+            android:paddingHorizontal="@dimen/spacing_md"
+            android:paddingTop="@dimen/spacing_md"
+            android:paddingBottom="@dimen/spacing_md"
             android:scrollbars="none">
 
             <TextView
                 android:id="@+id/messageText"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:fontFamily="sans-serif"
                 android:lineSpacingExtra="6dp"
                 android:text="@string/feed_empty"
-                android:textColor="@color/mesh_on_surface"
+                android:textColor="@color/mesh_on_surface_variant"
                 android:textSize="15sp" />
         </ScrollView>
     </LinearLayout>
 
-    <!-- Bottom action dock: compose + emergency (always reachable) -->
+    <!-- Bottom dock -->
     <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
@@ -267,6 +355,171 @@
         android:paddingBottom="@dimen/spacing_md">
 
         <LinearLayout
+            android:id="@+id/bottomNav"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginBottom="@dimen/spacing_md"
+            android:background="@drawable/nav_pill_bg"
+            android:orientation="horizontal"
+            android:paddingHorizontal="6dp"
+            android:paddingVertical="6dp">
+
+            <LinearLayout
+                android:id="@+id/bottomNavHome"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:paddingVertical="6dp">
+
+                <FrameLayout
+                    android:id="@+id/bottomNavHomeIconWrap"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp"
+                    android:background="@drawable/nav_icon_selected_bg">
+
+                    <ImageView
+                        android:id="@+id/bottomNavHomeIcon"
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_gravity="center"
+                        android:contentDescription="@string/nav_home"
+                        android:src="@drawable/ic_nav_home"
+                        app:tint="@color/mesh_teal" />
+                </FrameLayout>
+
+                <TextView
+                    android:id="@+id/bottomNavHomeLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="@string/nav_home"
+                    android:textColor="@color/mesh_teal"
+                    android:textSize="10sp"
+                    android:textStyle="bold"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/bottomNavNearby"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:paddingVertical="6dp">
+
+                <FrameLayout
+                    android:id="@+id/bottomNavNearbyIconWrap"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp">
+
+                    <ImageView
+                        android:id="@+id/bottomNavNearbyIcon"
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_gravity="center"
+                        android:contentDescription="@string/nav_nearby"
+                        android:src="@drawable/ic_nav_map"
+                        app:tint="@color/mesh_on_surface_variant" />
+                </FrameLayout>
+
+                <TextView
+                    android:id="@+id/bottomNavNearbyLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="@string/nav_nearby"
+                    android:textColor="@color/mesh_on_surface_variant"
+                    android:textSize="10sp"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/bottomNavResources"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:paddingVertical="6dp">
+
+                <FrameLayout
+                    android:id="@+id/bottomNavResourcesIconWrap"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp">
+
+                    <ImageView
+                        android:id="@+id/bottomNavResourcesIcon"
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_gravity="center"
+                        android:contentDescription="@string/nav_resources"
+                        android:src="@drawable/ic_nav_resources"
+                        app:tint="@color/mesh_on_surface_variant" />
+                </FrameLayout>
+
+                <TextView
+                    android:id="@+id/bottomNavResourcesLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="@string/nav_resources"
+                    android:textColor="@color/mesh_on_surface_variant"
+                    android:textSize="10sp"
+                    android:visibility="gone" />
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/bottomNavAlert"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:focusable="true"
+                android:gravity="center"
+                android:orientation="vertical"
+                android:paddingVertical="6dp">
+
+                <FrameLayout
+                    android:id="@+id/bottomNavAlertIconWrap"
+                    android:layout_width="40dp"
+                    android:layout_height="40dp">
+
+                    <ImageView
+                        android:id="@+id/bottomNavAlertIcon"
+                        android:layout_width="22dp"
+                        android:layout_height="22dp"
+                        android:layout_gravity="center"
+                        android:contentDescription="@string/nav_alert"
+                        android:src="@drawable/ic_nav_alert"
+                        app:tint="@color/mesh_emergency" />
+                </FrameLayout>
+
+                <TextView
+                    android:id="@+id/bottomNavAlertLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="2dp"
+                    android:text="@string/nav_alert"
+                    android:textColor="@color/mesh_emergency"
+                    android:textSize="10sp"
+                    android:visibility="gone" />
+            </LinearLayout>
+        </LinearLayout>
+
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:gravity="center_vertical"
@@ -274,9 +527,11 @@
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/recipientButton"
-                style="@style/Widget.MeshHood.Chip"
+                style="@style/Widget.MeshHood.ChipCompact"
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
+                android:layout_height="32dp"
+                android:minWidth="0dp"
+                android:paddingHorizontal="12dp"
                 android:text="@string/recipient_default" />
 
             <View
@@ -286,10 +541,12 @@
 
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/coordinatorButton"
-                style="@style/Widget.MeshHood.Chip"
+                style="@style/Widget.MeshHood.ChipCompact"
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/coordinator"
+                android:layout_height="32dp"
+                android:minWidth="0dp"
+                android:paddingHorizontal="12dp"
+                android:text="@string/nav_resources"
                 android:textColor="@color/mesh_amber" />
         </LinearLayout>
 
@@ -297,22 +554,53 @@
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:layout_marginTop="@dimen/spacing_sm"
+            android:background="@drawable/composer_bar_bg"
             android:gravity="center_vertical"
-            android:orientation="horizontal">
+            android:orientation="horizontal"
+            android:paddingHorizontal="6dp"
+            android:paddingVertical="6dp">
+
+            <FrameLayout
+                android:layout_width="38dp"
+                android:layout_height="38dp"
+                android:background="@drawable/avatar_stroke"
+                android:padding="2dp">
+
+                <ImageView
+                    android:id="@+id/composeAvatarImage"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@drawable/avatar_circle"
+                    android:contentDescription="@string/profile_avatar_cd"
+                    android:scaleType="centerCrop"
+                    android:visibility="gone" />
+
+                <TextView
+                    android:id="@+id/composeAvatarInitial"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:background="@drawable/avatar_circle"
+                    android:gravity="center"
+                    android:text="?"
+                    android:textColor="@color/mesh_teal_light"
+                    android:textSize="14sp"
+                    android:textStyle="bold" />
+            </FrameLayout>
 
             <EditText
                 android:id="@+id/inputField"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
+                android:layout_marginStart="@dimen/spacing_sm"
                 android:layout_weight="1"
-                android:background="@drawable/input_bg"
-                android:hint="@string/message_hint"
+                android:background="@android:color/transparent"
+                android:hint="@string/compose_hint"
                 android:importantForAutofill="no"
                 android:inputType="textCapSentences|textMultiLine"
                 android:maxLines="4"
-                android:minHeight="@dimen/touch_min"
-                android:paddingHorizontal="@dimen/spacing_md"
-                android:paddingVertical="12dp"
+                android:minHeight="44dp"
+                android:paddingHorizontal="4dp"
+                android:paddingVertical="10dp"
                 android:textColor="@color/mesh_on_surface"
                 android:textColorHint="@color/mesh_text_dim"
                 android:textSize="16sp" />
@@ -320,32 +608,14 @@
             <com.google.android.material.button.MaterialButton
                 android:id="@+id/sendButton"
                 style="@style/Widget.MeshHood.SendButton"
-                android:layout_width="@dimen/touch_min"
-                android:layout_height="@dimen/touch_min"
-                android:layout_marginStart="@dimen/spacing_sm"
+                android:layout_width="44dp"
+                android:layout_height="44dp"
+                android:layout_marginStart="4dp"
                 android:contentDescription="@string/send"
                 app:icon="@drawable/ic_send"
                 app:iconGravity="textStart"
                 app:iconPadding="0dp" />
         </LinearLayout>
-
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/emergencyButton"
-            style="@style/Widget.MeshHood.EmergencyButton"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/spacing_md"
-            android:text="@string/emergency_label"
-            app:icon="@drawable/ic_emergency" />
-
-        <TextView
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="@dimen/spacing_xs"
-            android:gravity="center"
-            android:text="@string/emergency_subtitle"
-            android:textColor="@color/mesh_text_dim"
-            android:textSize="11sp" />
     </LinearLayout>
 
 </LinearLayout>

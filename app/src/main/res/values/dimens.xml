@@ -7,9 +7,11 @@
     <dimen name="corner_sm">8dp</dimen>
     <dimen name="corner_md">12dp</dimen>
     <dimen name="corner_lg">16dp</dimen>
+    <dimen name="corner_xl">20dp</dimen>
     <dimen name="touch_min">48dp</dimen>
     <dimen name="emergency_height">56dp</dimen>
     <dimen name="header_logo">36dp</dimen>
     <dimen name="profile_avatar">44dp</dimen>
     <dimen name="profile_avatar_badge">16dp</dimen>
+    <dimen name="feed_line_spacing">14dp</dimen>
 </resources>

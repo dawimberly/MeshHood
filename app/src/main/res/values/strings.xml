@@ -4,6 +4,8 @@
     <string name="send">Send message</string>
 
     <!-- Public local feed (generic — not tied to "neighborhood" geography) -->
+    <string name="feed_section_label">Neighborhood feed</string>
+    <string name="feed_post_count">%1$d posts</string>
     <string name="feed_title">Area</string>
     <string name="area_picker_title">Switch area</string>
     <string name="area_picker_button">Area</string>
@@ -12,6 +14,7 @@
     <string name="feed_title_dm">Chat with %1$s</string>
     <string name="feed_scope_everyone">Everyone</string>
     <string name="feed_encrypted">Encrypted</string>
+    <string name="status_encrypted_dot">· encrypted</string>
     <string name="feed_empty">No messages yet.\nYour mesh is listening for others.</string>
     <string name="feed_empty_group">No messages in this group yet.\nSay hello or check pinned posts.</string>
     <string name="feed_empty_dm">No direct messages yet.\nSend a private message below.</string>
@@ -23,8 +26,34 @@
     <string name="chats_button_count">Chats (%1$d)</string>
 
     <string name="message_hint">Message</string>
+    <string name="compose_hint">What\u2019s happening in your area?</string>
     <string name="recipient_default">Everyone</string>
     <string name="coordinator">Status</string>
+    <string name="nav_home">Home</string>
+    <string name="nav_nearby">Nearby</string>
+    <string name="nav_resources">Resources</string>
+    <string name="nav_alert">Alert</string>
+    <string name="transport_ble">BLE</string>
+    <string name="transport_p2p">P2P</string>
+    <string name="transport_lan">LAN</string>
+    <string name="transport_cell">Cell</string>
+    <string name="cell_status_ready">Cell: ready</string>
+    <string name="cell_status_offline">Cell: no data</string>
+    <string name="cell_status_no_sim">Cell: no SIM</string>
+    <string name="emergency_lock_title">Need Help?</string>
+    <string name="emergency_lock_hint">Confirm to alert the mesh and text your ICE contact if their phone number is on your Emergency Card. Works from the lock screen.</string>
+    <string name="emergency_sent_toast">Emergency sent on mesh (+ SMS if ICE number set)</string>
+    <string name="emergency_sms_sent">ICE contact notified by SMS</string>
+    <string name="widget_sos_label">MeshHood SOS</string>
+    <string name="widget_sos_description">One-tap emergency — works from lock screen</string>
+
+    <string name="mesh_signal_bars">Mesh %1$s</string>
+    <string name="mesh_network_label">Mesh</string>
+    <string name="mesh_network_wifi">WiFi</string>
+    <string name="mesh_network_cell">5G</string>
+    <string name="mesh_status_cd">Mesh signal strength</string>
+    <string name="mesh_status_detail">%1$s, %2$d of %3$d signal bars</string>
+    <string name="neighbors_online">%1$d neighbors</string>
     <string name="emergency_label">Emergency — Need Help</string>
     <string name="emergency_subtitle">Alerts others nearby and shares your ICE card</string>
     <string name="status_connecting">Connecting mesh…</string>
@@ -114,8 +143,9 @@
     <string name="map_share_switch">Share location</string>
     <string name="map_sharing_hint">Neighbors who share location appear as pins. Yours updates on the mesh (~45 min cache).</string>
     <string name="map_hidden_hint">Your location is hidden. Turn on Share to help neighbors find you — or stay hidden for safety.</string>
-    <string name="map_open_system">Open in Maps app</string>
-    <string name="map_tile_hint">Map tiles cache temporarily on device (OpenStreetMap). Tap a pin or use Open in Maps for Google/Apple directions.</string>
+    <string name="map_open_system">Open in Google Maps</string>
+    <string name="map_tile_hint">Google Maps tiles cache on device while you use the app. Download offline areas in Google Maps for navigation without data.</string>
+    <string name="map_api_key_missing">Add MAPS_API_KEY to local.properties (Maps SDK for Android). You can still open Google Maps below.</string>
     <string name="map_peer_tap">Tap for directions in Maps</string>
     <string name="map_no_location">Waiting for GPS…</string>
     <string name="location_share_on_toast">Sharing location with mesh neighbors</string>

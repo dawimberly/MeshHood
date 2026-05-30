@@ -30,6 +30,7 @@ Disasters knock out centralized infrastructure first. MeshHood explores what a *
 | **Groups** | Community crews with admin verify + pin (no speech moderation) |
 | **Resource brain** | Rule-based coordinator + optional on-device Gemma LLM |
 | **Profile avatars** | Local photo + mesh thumbnail; neighbor vouch verification |
+| **Area map** | Google Maps in-app; share/hide location on the mesh; open in Google Maps for directions |
 
 ## Docs
 
@@ -38,7 +39,7 @@ Disasters knock out centralized infrastructure first. MeshHood explores what a *
 | [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) | Technical design |
 | [docs/PITCH.md](docs/PITCH.md) | Investor / partner pitch |
 | [docs/PATENT-BRIEF.md](docs/PATENT-BRIEF.md) | Provisional patent talking points |
-| [docs/TRANSPORT-TESTS.md](docs/TRANSPORT-TESTS.md) | BLE / WiFi / cellular test matrix |
+| [docs/UI-DESIGN.md](docs/UI-DESIGN.md) | UI blend spec (Nextdoor warmth + mesh infrastructure) |
 
 ## UI: Area vs Chats
 
@@ -94,6 +95,8 @@ python pc_two_phone_sim.py
 ### Android
 
 **Requirements:** Android 8+ (API 26), Bluetooth, location permission (required for BLE scan and rolling ZIP on Android).
+
+**Google Maps (in-app map):** Copy `local.properties.example` → `local.properties` and set `MAPS_API_KEY` from [Google Cloud Console](https://console.cloud.google.com/) (enable **Maps SDK for Android**, restrict the key to package `com.meshhood`). Without a key the map screen still opens **Open in Google Maps**; neighbors who share location appear as pins once the key is set.
 
 **PowerShell** — run install from the **`MeshHood`** folder (not `tools`):
 

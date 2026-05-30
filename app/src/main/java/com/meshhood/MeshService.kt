@@ -70,11 +70,13 @@ class MeshService : Service() {
     private var bleStatus: String = "Starting..."
     private var wifiStatus: String = ""
     private var lanStatus: String = ""
+    private var cellStatus: String = ""
     var status: String = "Starting..."
         private set
 
     private var wifiDirect: WifiDirectTransport? = null
     private var lan: LanTransport? = null
+    private var cellular: CellularTransport? = null
 
     private val knownPeers = linkedSetOf<String>()
 
@@ -189,6 +191,7 @@ class MeshService : Service() {
         const val DM_SCOPE_PREFIX = "dm:"
         // Fallback identity label before the user completes onboarding.
         const val DEFAULT_NAME = "Contact"
+        const val ACTION_EMERGENCY = "com.meshhood.ACTION_EMERGENCY"
 
         private const val PREFS_NAME = "meshhood_store"
         private const val KEY_LOG = "log"
@@ -256,6 +259,7 @@ class MeshService : Service() {
         startBle()
         startWifiDirect()
         startLan()
+        startCellular()
         composeStatus()
         // Load the optional on-device LLM in the background; falls back silently.
         llmExecutor.execute {
@@ -326,6 +330,16 @@ class MeshService : Service() {
         ).also { it.start() }
     }
 
+    private fun startCellular() {
+        cellular = CellularTransport(
+            context = this,
+            onStatus = { s ->
+                cellStatus = s
+                composeStatus()
+            },
+        ).also { it.start() }
+    }
+
     /** Shared receive path for any transport: decrypt then handle. */
     private fun onTransportBytes(bytes: ByteArray) {
         val decrypted = Crypto.decrypt(bytes)
@@ -337,6 +351,9 @@ class MeshService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        if (intent?.action == ACTION_EMERGENCY) {
+            sendEmergency()
+        }
         return START_STICKY
     }
 
@@ -361,31 +378,107 @@ class MeshService : Service() {
                 }
             }
         }
-        val home = effectiveZone()
-        val entries = logEntries.mapIndexed { index, e -> index to e }
-            .filter { (_, e) ->
-                if (e.emergency) return@filter true
-                // Your own public posts always show in area views (avoids scope mismatch).
-                if (e.sender == "You" && !isDmScope(e.scope) && groups[e.scope] == null &&
-                    (filterScope == SCOPE_EVERYONE || MeshZone.isZoneScope(filterScope))
-                ) {
-                    return@filter true
-                }
-                when {
-                    isDmScope(filterScope) -> e.scope == filterScope
-                    isGroupMember(filterScope) -> e.scope == filterScope
-                    filterScope == SCOPE_EVERYONE || MeshZone.isZoneScope(filterScope) ->
-                        MeshZone.visibleInView(e.scope, filterScope)
-                    else -> e.scope == filterScope
+        blocks.addAll(feedLines(filterScope).map { it.displayLine() })
+        return blocks.joinToString("\n\n")
+    }
+
+    /** Structured feed lines for styled UI rendering. */
+    fun feedLines(filterScope: String): List<FeedLine> {
+        val out = mutableListOf<FeedLine>()
+        if (filterScope != SCOPE_EVERYONE && !isDmScope(filterScope) && !MeshZone.isZoneScope(filterScope)) {
+            groupOf(filterScope)?.let {
+                pinsForGroup(filterScope).take(3).forEach { p ->
+                    out.add(
+                        FeedLine(
+                            time = "",
+                            sender = "\uD83D\uDCCC Pin",
+                            text = "${p.text} — ${p.admin}",
+                            kind = FeedKind.SYSTEM,
+                        )
+                    )
                 }
             }
-            .sortedWith(
-                compareBy<Pair<Int, LogEntry>> { (_, e) -> if (e.emergency) 0 else 1 }
-                    .thenBy { (_, e) -> MeshZone.proximityRank(e.scope, filterScope, home) }
-                    .thenBy { (index, _) -> index }
-            )
-        blocks.addAll(entries.map { (_, e) -> e.displayLine() })
-        return blocks.joinToString("\n\n")
+        }
+        val home = effectiveZone()
+        out.addAll(
+            logEntries.mapIndexed { index, e -> index to e }
+                .filter { (_, e) ->
+                    if (e.emergency) return@filter true
+                    if (e.sender == "You" && !isDmScope(e.scope) && groups[e.scope] == null &&
+                        (filterScope == SCOPE_EVERYONE || MeshZone.isZoneScope(filterScope))
+                    ) {
+                        return@filter true
+                    }
+                    when {
+                        isDmScope(filterScope) -> e.scope == filterScope
+                        isGroupMember(filterScope) -> e.scope == filterScope
+                        filterScope == SCOPE_EVERYONE || MeshZone.isZoneScope(filterScope) ->
+                            MeshZone.visibleInView(e.scope, filterScope)
+                        else -> e.scope == filterScope
+                    }
+                }
+                .sortedWith(
+                    compareBy<Pair<Int, LogEntry>> { (_, e) -> if (e.emergency) 0 else 1 }
+                        .thenBy { (_, e) -> MeshZone.proximityRank(e.scope, filterScope, home) }
+                        .thenBy { (index, _) -> index }
+                )
+                .map { (_, e) ->
+                    FeedLine(
+                        time = e.time,
+                        sender = e.sender,
+                        text = e.text,
+                        kind = FeedLine.classify(e.sender, e.text, e.emergency),
+                    )
+                }
+        )
+        return out
+    }
+
+    /** Live transport channels for the status strip UI. */
+    fun transportState(): TransportState {
+        fun channelState(raw: String): ChannelState {
+            if (raw.isBlank()) return ChannelState.OFF
+            val lower = raw.lowercase()
+            return when {
+                lower.contains("connected") || lower.contains("linked") -> ChannelState.ACTIVE
+                lower.contains("discovering") || lower.contains("searching") ||
+                    lower.contains("advertising") -> ChannelState.SEARCHING
+                lower.contains("unavailable") || lower.contains("failed") ||
+                    lower.contains("turn bluetooth") -> ChannelState.ERROR
+                else -> ChannelState.SEARCHING
+            }
+        }
+        val n = knownPeers.size
+        var activeChannels = 0
+        if (channelState(bleStatus) == ChannelState.ACTIVE) activeChannels++
+        if (channelState(wifiStatus) == ChannelState.ACTIVE) activeChannels++
+        if (channelState(lanStatus) == ChannelState.ACTIVE) activeChannels++
+        if (channelState(cellStatus) == ChannelState.ACTIVE) activeChannels++
+        val bars = when {
+            n >= 4 -> 4
+            n >= 2 -> 3
+            n >= 1 -> 2
+            activeChannels >= 1 || channelState(bleStatus) == ChannelState.SEARCHING -> 1
+            else -> 0
+        }
+        return TransportState(
+            ble = channelState(bleStatus),
+            wifiDirect = channelState(wifiStatus),
+            lan = channelState(lanStatus),
+            cellular = cellChannelState(cellStatus),
+            neighborCount = n,
+            meshBars = bars,
+        )
+    }
+
+    private fun cellChannelState(raw: String): ChannelState {
+        if (raw.isBlank()) return ChannelState.OFF
+        val lower = raw.lowercase()
+        return when {
+            lower.contains("ready") -> ChannelState.ACTIVE
+            lower.contains("no sim") -> ChannelState.OFF
+            else -> ChannelState.SEARCHING
+        }
     }
 
     fun setFeedScope(scope: String) {
@@ -700,7 +793,7 @@ class MeshService : Service() {
 
     private fun composeStatus() {
         val parts = mutableListOf<String>()
-        listOf(bleStatus, wifiStatus, lanStatus).filterTo(parts) { it.isNotEmpty() }
+        listOf(bleStatus, wifiStatus, lanStatus, cellStatus).filterTo(parts) { it.isNotEmpty() }
         if (knownPeers.isNotEmpty()) {
             parts.add(getString(R.string.status_neighbors, knownPeers.size))
         }
@@ -2120,6 +2213,10 @@ class MeshService : Service() {
             if (!myIce.isBlank()) put("ice", iceToJson(myIce))
         }.toString()
         flood(envelope)
+        val loc = lastKnownLocation()
+        if (cellular?.sendEmergencySms(myName, myIce, loc?.first, loc?.second) == true) {
+            appendLog("Cell", getString(R.string.emergency_sms_sent))
+        }
     }
 
     // ---- Envelope builders ----
@@ -2580,9 +2677,18 @@ class MeshService : Service() {
     @SuppressLint("MissingPermission")
     private fun notifySubscribers(plaintextEnvelope: String) {
         val bytes = Crypto.encrypt(plaintextEnvelope)
-        // Push over the other parallel transports (WiFi Direct + LAN).
-        wifiDirect?.send(bytes)
-        lan?.send(bytes)
+        // Prefer high-bandwidth local pipes first, then proximity mesh radios.
+        if (lan?.hasPeers() == true) {
+            lan?.send(bytes)
+        }
+        if (wifiDirect?.hasPeers() == true) {
+            wifiDirect?.send(bytes)
+        }
+        sendBle(bytes)
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun sendBle(bytes: ByteArray) {
         val characteristic = messageCharacteristic ?: return
         val server = bluetoothGattServer ?: return
         if (subscribers.isEmpty()) return
@@ -2609,6 +2715,10 @@ class MeshService : Service() {
         }
         try {
             lan?.stop()
+        } catch (_: Exception) {
+        }
+        try {
+            cellular?.stop()
         } catch (_: Exception) {
         }
         try {

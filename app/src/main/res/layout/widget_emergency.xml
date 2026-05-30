@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="utf-8"?>
+<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/mesh_emergency_dark"
+    android:padding="8dp">
+
+    <Button
+        android:id="@+id/widgetSosButton"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="@drawable/emergency_btn"
+        android:gravity="center"
+        android:text="@string/widget_sos_label"
+        android:textColor="@color/white"
+        android:textSize="16sp"
+        android:textStyle="bold" />
+</FrameLayout>

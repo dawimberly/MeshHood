@@ -1,9 +1,12 @@
 package com.meshhood
 
 import android.Manifest
+import android.graphics.Typeface
+import android.view.Gravity
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.content.res.ColorStateList
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.os.Build
@@ -39,19 +42,41 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
     private lateinit var feedTitleText: TextView
     private lateinit var areaPickerButton: MaterialButton
     private lateinit var feedBackButton: ImageButton
-    private lateinit var chatsButton: MaterialButton
+    private lateinit var chatsIconButton: ImageButton
     private lateinit var messageText: TextView
+    private lateinit var feedPostCountText: TextView
     private lateinit var logScroll: ScrollView
     private lateinit var inputField: EditText
     private lateinit var sendButton: Button
-    private lateinit var emergencyButton: Button
     private lateinit var recipientButton: Button
     private lateinit var coordinatorButton: Button
     private lateinit var menuButton: ImageButton
+    private lateinit var transportStrip: View
+    private lateinit var signalBars: List<View>
+    private lateinit var meshNetworkLabel: TextView
+    private lateinit var neighborCountText: TextView
+    private lateinit var bottomNavHome: View
+    private lateinit var bottomNavNearby: View
+    private lateinit var bottomNavResources: View
+    private lateinit var bottomNavAlert: View
+    private lateinit var bottomNavHomeIconWrap: View
+    private lateinit var bottomNavNearbyIconWrap: View
+    private lateinit var bottomNavResourcesIconWrap: View
+    private lateinit var bottomNavAlertIconWrap: View
+    private lateinit var bottomNavHomeIcon: ImageView
+    private lateinit var bottomNavHomeLabel: TextView
+    private lateinit var bottomNavNearbyIcon: ImageView
+    private lateinit var bottomNavNearbyLabel: TextView
+    private lateinit var bottomNavResourcesIcon: ImageView
+    private lateinit var bottomNavResourcesLabel: TextView
+    private lateinit var bottomNavAlertIcon: ImageView
+    private lateinit var bottomNavAlertLabel: TextView
     private lateinit var profileAvatarButton: FrameLayout
     private lateinit var profileAvatarImage: ImageView
     private lateinit var profileAvatarInitial: TextView
     private lateinit var profileAvatarVerifiedBadge: ImageView
+    private lateinit var composeAvatarImage: ImageView
+    private lateinit var composeAvatarInitial: TextView
     private lateinit var dmPeerAvatarButton: FrameLayout
     private lateinit var dmPeerAvatarImage: ImageView
     private lateinit var dmPeerAvatarInitial: TextView
@@ -82,6 +107,7 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
     private val optionalPermissions = setOf(
         Manifest.permission.POST_NOTIFICATIONS,
         Manifest.permission.NEARBY_WIFI_DEVICES,
+        Manifest.permission.SEND_SMS,
     )
 
     private val permissionLauncher = registerForActivityResult(
@@ -131,19 +157,47 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         feedTitleText = findViewById(R.id.feedTitleText)
         areaPickerButton = findViewById(R.id.areaPickerButton)
         feedBackButton = findViewById(R.id.feedBackButton)
-        chatsButton = findViewById(R.id.chatsButton)
+        chatsIconButton = findViewById(R.id.chatsIconButton)
         messageText = findViewById(R.id.messageText)
+        feedPostCountText = findViewById(R.id.feedPostCountText)
         logScroll = findViewById(R.id.logScroll)
         inputField = findViewById(R.id.inputField)
         sendButton = findViewById(R.id.sendButton)
-        emergencyButton = findViewById(R.id.emergencyButton)
         recipientButton = findViewById(R.id.recipientButton)
         coordinatorButton = findViewById(R.id.coordinatorButton)
         menuButton = findViewById(R.id.menuButton)
+        transportStrip = findViewById(R.id.transportStrip)
+        signalBars = listOf(
+            findViewById(R.id.signalBar1),
+            findViewById(R.id.signalBar2),
+            findViewById(R.id.signalBar3),
+            findViewById(R.id.signalBar4),
+            findViewById(R.id.signalBar5),
+        )
+        meshNetworkLabel = findViewById(R.id.meshNetworkLabel)
+        neighborCountText = findViewById(R.id.neighborCountText)
+        bottomNavHome = findViewById(R.id.bottomNavHome)
+        bottomNavNearby = findViewById(R.id.bottomNavNearby)
+        bottomNavResources = findViewById(R.id.bottomNavResources)
+        bottomNavAlert = findViewById(R.id.bottomNavAlert)
+        bottomNavHomeIconWrap = findViewById(R.id.bottomNavHomeIconWrap)
+        bottomNavNearbyIconWrap = findViewById(R.id.bottomNavNearbyIconWrap)
+        bottomNavResourcesIconWrap = findViewById(R.id.bottomNavResourcesIconWrap)
+        bottomNavAlertIconWrap = findViewById(R.id.bottomNavAlertIconWrap)
+        bottomNavHomeIcon = findViewById(R.id.bottomNavHomeIcon)
+        bottomNavHomeLabel = findViewById(R.id.bottomNavHomeLabel)
+        bottomNavNearbyIcon = findViewById(R.id.bottomNavNearbyIcon)
+        bottomNavNearbyLabel = findViewById(R.id.bottomNavNearbyLabel)
+        bottomNavResourcesIcon = findViewById(R.id.bottomNavResourcesIcon)
+        bottomNavResourcesLabel = findViewById(R.id.bottomNavResourcesLabel)
+        bottomNavAlertIcon = findViewById(R.id.bottomNavAlertIcon)
+        bottomNavAlertLabel = findViewById(R.id.bottomNavAlertLabel)
         profileAvatarButton = findViewById(R.id.profileAvatarButton)
         profileAvatarImage = findViewById(R.id.profileAvatarImage)
         profileAvatarInitial = findViewById(R.id.profileAvatarInitial)
         profileAvatarVerifiedBadge = findViewById(R.id.profileAvatarVerifiedBadge)
+        composeAvatarImage = findViewById(R.id.composeAvatarImage)
+        composeAvatarInitial = findViewById(R.id.composeAvatarInitial)
         dmPeerAvatarButton = findViewById(R.id.dmPeerAvatarButton)
         dmPeerAvatarImage = findViewById(R.id.dmPeerAvatarImage)
         dmPeerAvatarInitial = findViewById(R.id.dmPeerAvatarInitial)
@@ -162,13 +216,34 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         }
 
         sendButton.setOnClickListener { onSendClicked() }
-        emergencyButton.setOnClickListener { onEmergencyClicked() }
         recipientButton.setOnClickListener { onRecipientClicked() }
         coordinatorButton.setOnClickListener { onCoordinatorClicked() }
         menuButton.setOnClickListener { onFeedLongPress() }
         feedBackButton.setOnClickListener { returnToArea() }
         areaPickerButton.setOnClickListener { onAreaPickerClicked() }
-        chatsButton.setOnClickListener { onChatsClicked() }
+        chatsIconButton.setOnClickListener { onChatsClicked() }
+        val focusComposer = {
+            inputField.requestFocus()
+            logScroll.post { logScroll.fullScroll(ScrollView.FOCUS_DOWN) }
+        }
+        logScroll.setOnClickListener { focusComposer() }
+        messageText.setOnClickListener { focusComposer() }
+        bottomNavHome.setOnClickListener {
+            selectNavTab(NavTab.HOME)
+        }
+        bottomNavNearby.setOnClickListener {
+            selectNavTab(NavTab.NEARBY)
+            startActivity(Intent(this, MapActivity::class.java))
+        }
+        bottomNavResources.setOnClickListener {
+            selectNavTab(NavTab.RESOURCES)
+            onCoordinatorClicked()
+        }
+        bottomNavAlert.setOnClickListener {
+            selectNavTab(NavTab.ALERT)
+            onAlertTabClicked()
+        }
+        selectNavTab(NavTab.HOME)
         logScroll.setOnLongClickListener { onFeedLongPress(); true }
         messageText.setOnLongClickListener { onFeedLongPress(); true }
 
@@ -674,6 +749,12 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
             profileAvatarVerifiedBadge,
             name,
         )
+        bindProfileAvatar(
+            composeAvatarImage,
+            composeAvatarInitial,
+            null,
+            name,
+        )
     }
 
     private fun showProfileDialog(onboarding: Boolean) {
@@ -1055,7 +1136,7 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
             builder.setNeutralButton("🙏 Thank") { _, _ -> service.thank(name) }
             if (peerLoc != null && peerLoc.hasCoords()) {
                 builder.setNegativeButton(getString(R.string.profile_open_maps)) { _, _ ->
-                    MapsHelper.openInMaps(this, peerLoc.lat, peerLoc.lon, name)
+                    MapsHelper.openInGoogleMaps(this, peerLoc.lat, peerLoc.lon, name)
                 }
             } else if (service.hasPhotoFor(name)) {
                 builder.setNegativeButton(getString(R.string.profile_photo_vouch_action)) { _, _ ->
@@ -1071,7 +1152,7 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
             service.myLocationSnapshot()?.let { snap ->
                 if (snap.hasCoords()) {
                     builder.setNeutralButton(getString(R.string.profile_open_maps)) { _, _ ->
-                        MapsHelper.openInMaps(this, snap.lat, snap.lon, name)
+                        MapsHelper.openInGoogleMaps(this, snap.lat, snap.lon, name)
                     }
                 }
             }
@@ -1337,6 +1418,81 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
             .show()
     }
 
+    private fun onAlertTabClicked() {
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(R.string.nav_alert)
+            .setMessage(R.string.emergency_subtitle)
+            .setPositiveButton(R.string.emergency_label) { _, _ -> onEmergencyClicked() }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun filledSignalBars(ts: TransportState): Int {
+        if (ts.meshBars > 0) {
+            return ((ts.meshBars * 5f + 3f) / 4f).toInt().coerceIn(0, 5)
+        }
+        return if (transportSearching(ts)) 1 else 0
+    }
+
+    private fun transportSearching(ts: TransportState): Boolean =
+        ts.ble == ChannelState.SEARCHING ||
+            ts.wifiDirect == ChannelState.SEARCHING ||
+            ts.lan == ChannelState.SEARCHING ||
+            ts.cellular == ChannelState.SEARCHING
+
+    private fun tintSignalBar(bar: View, filled: Boolean, color: Int) {
+        val tint = if (filled) color else getColor(R.color.mesh_channel_off)
+        bar.backgroundTintList = ColorStateList.valueOf(tint)
+        bar.alpha = if (filled) 1f else 0.35f
+    }
+
+    private fun meshNetworkLabelFor(ts: TransportState): String = when {
+        ts.neighborCount > 0 -> getString(R.string.mesh_network_label)
+        ts.cellular == ChannelState.ACTIVE || ts.cellular == ChannelState.SEARCHING ->
+            getString(R.string.mesh_network_cell)
+        ts.wifiDirect == ChannelState.ACTIVE || ts.lan == ChannelState.ACTIVE ->
+            getString(R.string.mesh_network_wifi)
+        transportSearching(ts) -> getString(R.string.mesh_network_label)
+        else -> getString(R.string.mesh_network_label)
+    }
+
+    private fun meshSignalColor(ts: TransportState): Int {
+        val colorRes = when {
+            ts.meshBars >= 3 -> R.color.mesh_channel_active
+            ts.meshBars >= 1 -> R.color.mesh_on_surface
+            transportSearching(ts) -> R.color.mesh_on_surface
+            ts.ble == ChannelState.ERROR || ts.wifiDirect == ChannelState.ERROR ||
+                ts.lan == ChannelState.ERROR || ts.cellular == ChannelState.ERROR ->
+                R.color.mesh_channel_error
+            else -> R.color.mesh_on_surface_variant
+        }
+        return getColor(colorRes)
+    }
+
+    private fun refreshTransportStrip(service: MeshService) {
+        val ts = service.transportState()
+        val color = meshSignalColor(ts)
+        val lit = filledSignalBars(ts)
+        signalBars.forEachIndexed { index, bar ->
+            tintSignalBar(bar, index < lit, color)
+        }
+        meshNetworkLabel.text = meshNetworkLabelFor(ts)
+        meshNetworkLabel.setTextColor(color)
+        if (ts.neighborCount > 0) {
+            neighborCountText.visibility = View.VISIBLE
+            neighborCountText.text = ts.neighborCount.toString()
+        } else {
+            neighborCountText.visibility = View.GONE
+            neighborCountText.text = ""
+        }
+        transportStrip.contentDescription = getString(
+            R.string.mesh_status_detail,
+            meshNetworkLabel.text,
+            lit,
+            signalBars.size,
+        )
+    }
+
     private fun onEmergencyClicked() {
         meshService?.sendEmergency()
         Toast.makeText(this, "Emergency broadcast sent", Toast.LENGTH_SHORT).show()
@@ -1383,6 +1539,33 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         refreshUi()
     }
 
+    private enum class NavTab { HOME, NEARBY, RESOURCES, ALERT }
+
+    private fun selectNavTab(tab: NavTab) {
+        data class TabUi(
+            val iconWrap: View,
+            val icon: ImageView,
+            val label: TextView,
+            val tab: NavTab,
+            val activeColor: Int,
+            val idleColor: Int,
+        )
+        val tabs = listOf(
+            TabUi(bottomNavHomeIconWrap, bottomNavHomeIcon, bottomNavHomeLabel, NavTab.HOME, R.color.mesh_teal, R.color.mesh_on_surface_variant),
+            TabUi(bottomNavNearbyIconWrap, bottomNavNearbyIcon, bottomNavNearbyLabel, NavTab.NEARBY, R.color.mesh_teal, R.color.mesh_on_surface_variant),
+            TabUi(bottomNavResourcesIconWrap, bottomNavResourcesIcon, bottomNavResourcesLabel, NavTab.RESOURCES, R.color.mesh_amber, R.color.mesh_on_surface_variant),
+            TabUi(bottomNavAlertIconWrap, bottomNavAlertIcon, bottomNavAlertLabel, NavTab.ALERT, R.color.mesh_emergency, R.color.mesh_emergency),
+        )
+        for (t in tabs) {
+            val selected = t.tab == tab
+            t.iconWrap.setBackgroundResource(if (selected) R.drawable.nav_icon_selected_bg else android.R.color.transparent)
+            val color = ContextCompat.getColor(this, if (selected) t.activeColor else t.idleColor)
+            t.icon.setColorFilter(color)
+            t.label.setTextColor(color)
+            t.label.setTypeface(null, if (selected) Typeface.BOLD else Typeface.NORMAL)
+        }
+    }
+
     private fun refreshUi() {
         val service = meshService ?: return
         if (service.hasProfile()) {
@@ -1392,7 +1575,7 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
             userNameText.visibility = View.GONE
         }
         refreshAvatar()
-        statusText.text = service.status
+        refreshTransportStrip(service)
         val scope = service.feedScope
         val inDm = service.isDmScope(scope)
         feedBackButton.visibility = if (inDm) View.VISIBLE else View.GONE
@@ -1403,12 +1586,18 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
             areaPickerButton.text = getString(R.string.area_picker_button_label, service.feedScopeLabel(scope))
         }
         val dmCount = service.dmConversations().size
-        chatsButton.visibility = if (inDm) View.GONE else View.VISIBLE
-        chatsButton.text = if (dmCount > 0) {
+        chatsIconButton.visibility = if (inDm) View.GONE else View.VISIBLE
+        chatsIconButton.contentDescription = if (dmCount > 0) {
             getString(R.string.chats_button_count, dmCount)
         } else {
             getString(R.string.chats_button)
         }
+        chatsIconButton.imageTintList = ColorStateList.valueOf(
+            ContextCompat.getColor(
+                this,
+                if (dmCount > 0) R.color.mesh_teal else R.color.mesh_on_surface_variant,
+            ),
+        )
         if (inDm) {
             val peer = service.peerFromDmScope(scope)
             dmPeerAvatarClickName = peer
@@ -1424,15 +1613,27 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         } else {
             dmPeerAvatarClickName = null
         }
-        val log = service.getFeedText(scope)
-        messageText.text = when {
-            log.isBlank() && (scope == MeshService.SCOPE_EVERYONE || MeshZone.isZoneScope(scope)) ->
+        val lines = service.feedLines(scope)
+        val emptyFallback = when {
+            scope == MeshService.SCOPE_EVERYONE || MeshZone.isZoneScope(scope) ->
                 getString(R.string.feed_empty)
-            log.isBlank() && service.isDmScope(scope) ->
+            service.isDmScope(scope) ->
                 getString(R.string.feed_empty_dm)
-            log.isBlank() ->
+            else ->
                 getString(R.string.feed_empty_group)
-            else -> log
+        }
+        messageText.text = if (lines.isEmpty()) {
+            emptyFallback
+        } else {
+            FeedStyler.spannable(this, lines, emptyFallback)
+        }
+        if (lines.isEmpty()) {
+            messageText.gravity = Gravity.CENTER
+            feedPostCountText.visibility = View.GONE
+        } else {
+            messageText.gravity = Gravity.TOP or Gravity.START
+            feedPostCountText.text = getString(R.string.feed_post_count, lines.size)
+            feedPostCountText.visibility = View.VISIBLE
         }
         logScroll.post { logScroll.fullScroll(ScrollView.FOCUS_DOWN) }
     }

@@ -1,10 +1,11 @@
 package com.meshhood
 
+import android.Manifest
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
-import android.graphics.drawable.Drawable
+import android.content.pm.PackageManager
 import android.os.Bundle
 import android.os.IBinder
 import android.view.View
@@ -12,26 +13,28 @@ import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.content.ContextCompat
+import com.google.android.gms.maps.CameraUpdateFactory
+import com.google.android.gms.maps.GoogleMap
+import com.google.android.gms.maps.OnMapReadyCallback
+import com.google.android.gms.maps.SupportMapFragment
+import com.google.android.gms.maps.model.BitmapDescriptorFactory
+import com.google.android.gms.maps.model.LatLng
+import com.google.android.gms.maps.model.Marker
+import com.google.android.gms.maps.model.MarkerOptions
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.switchmaterial.SwitchMaterial
-import org.osmdroid.config.Configuration
-import org.osmdroid.tileprovider.tilesource.TileSourceFactory
-import org.osmdroid.util.GeoPoint
-import org.osmdroid.views.MapView
-import org.osmdroid.views.overlay.Marker
-import org.osmdroid.views.overlay.mylocation.GpsMyLocationProvider
-import org.osmdroid.views.overlay.mylocation.MyLocationNewOverlay
 
-class MapActivity : AppCompatActivity(), MeshService.MeshCallback {
+class MapActivity : AppCompatActivity(), MeshService.MeshCallback, OnMapReadyCallback {
 
     private var meshService: MeshService? = null
     private var bound = false
+    private var googleMap: GoogleMap? = null
 
-    private lateinit var mapView: MapView
     private lateinit var shareSwitch: SwitchMaterial
     private lateinit var statusText: TextView
     private lateinit var openSystemMapsButton: MaterialButton
-    private var myLocationOverlay: MyLocationNewOverlay? = null
+    private lateinit var mapSetupHint: TextView
     private val peerMarkers = mutableMapOf<String, Marker>()
 
     private val connection = object : ServiceConnection {
@@ -51,25 +54,23 @@ class MapActivity : AppCompatActivity(), MeshService.MeshCallback {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        Configuration.getInstance().load(this, getSharedPreferences("osmdroid", MODE_PRIVATE))
-        Configuration.getInstance().userAgentValue = packageName
         setContentView(R.layout.activity_map)
 
-        mapView = findViewById(R.id.mapView)
         shareSwitch = findViewById(R.id.shareLocationSwitch)
         statusText = findViewById(R.id.mapStatusText)
         openSystemMapsButton = findViewById(R.id.openSystemMapsButton)
+        mapSetupHint = findViewById(R.id.mapSetupHint)
 
         findViewById<ImageButton>(R.id.mapBackButton).setOnClickListener { finish() }
 
-        mapView.setTileSource(TileSourceFactory.MAPNIK)
-        mapView.setMultiTouchControls(true)
-        mapView.controller.setZoom(14.0)
-
-        myLocationOverlay = MyLocationNewOverlay(GpsMyLocationProvider(this), mapView).also {
-            it.enableMyLocation()
-            mapView.overlays.add(it)
+        if (BuildConfig.MAPS_API_KEY.isBlank()) {
+            mapSetupHint.visibility = View.VISIBLE
+            mapSetupHint.text = getString(R.string.map_api_key_missing)
         }
+
+        val mapFragment = supportFragmentManager
+            .findFragmentById(R.id.mapFragment) as SupportMapFragment
+        mapFragment.getMapAsync(this)
 
         shareSwitch.setOnCheckedChangeListener { _, checked ->
             val service = meshService ?: return@setOnCheckedChangeListener
@@ -83,9 +84,34 @@ class MapActivity : AppCompatActivity(), MeshService.MeshCallback {
             syncUi()
         }
 
-        openSystemMapsButton.setOnClickListener { openSelfInSystemMaps() }
+        openSystemMapsButton.setOnClickListener { openSelfInGoogleMaps() }
 
         bindService(Intent(this, MeshService::class.java), connection, Context.BIND_AUTO_CREATE)
+    }
+
+    override fun onMapReady(map: GoogleMap) {
+        googleMap = map
+        map.uiSettings.isZoomControlsEnabled = true
+        map.uiSettings.isMyLocationButtonEnabled = true
+        map.mapType = GoogleMap.MAP_TYPE_NORMAL
+
+        if (ContextCompat.checkSelfPermission(this, Manifest.permission.ACCESS_FINE_LOCATION)
+            == PackageManager.PERMISSION_GRANTED
+        ) {
+            map.isMyLocationEnabled = true
+        }
+
+        map.setOnMarkerClickListener { marker ->
+            MapsHelper.openInGoogleMaps(
+                this,
+                marker.position.latitude,
+                marker.position.longitude,
+                marker.title ?: "",
+            )
+            true
+        }
+
+        refreshMarkers()
     }
 
     private fun syncUi() {
@@ -98,6 +124,7 @@ class MapActivity : AppCompatActivity(), MeshService.MeshCallback {
     }
 
     private fun refreshMarkers() {
+        val map = googleMap ?: return
         val service = meshService ?: return
         service.refreshLiveGeoAsync()
         PeerLocationStore.purgeExpired()
@@ -106,44 +133,42 @@ class MapActivity : AppCompatActivity(), MeshService.MeshCallback {
         val names = peers.keys.toSet()
 
         peerMarkers.keys.filter { it !in names }.forEach { name ->
-            mapView.overlays.remove(peerMarkers.remove(name))
+            peerMarkers.remove(name)?.remove()
         }
 
         for ((name, snap) in peers) {
-            val marker = peerMarkers.getOrPut(name) {
-                Marker(mapView).apply {
-                    setAnchor(Marker.ANCHOR_CENTER, Marker.ANCHOR_BOTTOM)
-                    setOnMarkerClickListener { m, _ ->
-                        MapsHelper.openInMaps(this@MapActivity, m.position.latitude, m.position.longitude, name)
-                        true
-                    }
-                    mapView.overlays.add(this)
-                }
+            val position = LatLng(snap.lat, snap.lon)
+            val existing = peerMarkers[name]
+            if (existing != null) {
+                existing.position = position
+                existing.title = name
+            } else {
+                val marker = map.addMarker(
+                    MarkerOptions()
+                        .position(position)
+                        .title(name)
+                        .snippet(getString(R.string.map_peer_tap))
+                        .icon(BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE)),
+                ) ?: continue
+                peerMarkers[name] = marker
             }
-            marker.position = GeoPoint(snap.lat, snap.lon)
-            marker.title = name
-            marker.snippet = getString(R.string.map_peer_tap)
-            marker.icon = peerDrawable()
         }
 
         val self = service.myLocationSnapshot()
-        if (self != null && self.hasCoords()) {
-            mapView.controller.setCenter(GeoPoint(self.lat, self.lon))
-        } else if (peers.isNotEmpty()) {
-            val first = peers.values.first()
-            mapView.controller.setCenter(GeoPoint(first.lat, first.lon))
+        val center = when {
+            self != null && self.hasCoords() -> LatLng(self.lat, self.lon)
+            peers.isNotEmpty() -> {
+                val first = peers.values.first()
+                LatLng(first.lat, first.lon)
+            }
+            else -> null
         }
-
-        mapView.invalidate()
+        if (center != null) {
+            map.animateCamera(CameraUpdateFactory.newLatLngZoom(center, 14f))
+        }
     }
 
-    private fun peerDrawable(): Drawable? {
-        val d = resources.getDrawable(R.drawable.avatar_circle, theme)
-        d.setTint(getColor(R.color.mesh_primary))
-        return d
-    }
-
-    private fun openSelfInSystemMaps() {
+    private fun openSelfInGoogleMaps() {
         val service = meshService ?: return
         val snap = service.myLocationSnapshot() ?: run {
             Toast.makeText(this, R.string.map_no_location, Toast.LENGTH_SHORT).show()
@@ -153,7 +178,7 @@ class MapActivity : AppCompatActivity(), MeshService.MeshCallback {
             Toast.makeText(this, R.string.map_no_location, Toast.LENGTH_SHORT).show()
             return
         }
-        MapsHelper.openInMaps(this, snap.lat, snap.lon, service.myName)
+        MapsHelper.openInGoogleMaps(this, snap.lat, snap.lon, service.myName)
     }
 
     override fun onUpdate() {
@@ -165,14 +190,12 @@ class MapActivity : AppCompatActivity(), MeshService.MeshCallback {
 
     override fun onResume() {
         super.onResume()
-        mapView.onResume()
         meshService?.setCallback(this)
         refreshMarkers()
     }
 
     override fun onPause() {
         super.onPause()
-        mapView.onPause()
         meshService?.setCallback(null)
     }
 

@@ -1,0 +1,7 @@
+# Copy to local.properties (gitignored) and fill in your paths/keys.
+sdk.dir=C\:\\Users\\YourName\\AppData\\Local\\Android\\Sdk
+
+# Google Maps SDK for Android — required for the in-app Area map.
+# 1. https://console.cloud.google.com/ → APIs & Services → Enable "Maps SDK for Android"
+# 2. Credentials → Create API key → restrict to Android app com.meshhood + your SHA-1
+MAPS_API_KEY=YOUR_KEY_HERE

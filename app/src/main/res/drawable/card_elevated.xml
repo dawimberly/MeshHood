@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="135"
+                android:endColor="@color/mesh_card"
+                android:startColor="@color/mesh_surface_elevated"
+                android:type="linear" />
+            <corners android:radius="@dimen/corner_xl" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <corners android:radius="@dimen/corner_xl" />
+            <stroke
+                android:width="1dp"
+                android:color="@color/mesh_stroke_subtle" />
+        </shape>
+    </item>
+</layer-list>

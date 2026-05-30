@@ -3,30 +3,49 @@
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
 
-    <!-- Surfaces -->
-    <color name="mesh_bg">#0F1419</color>
-    <color name="mesh_surface">#161D27</color>
-    <color name="mesh_surface_elevated">#1E2733</color>
-    <color name="mesh_card">#243041</color>
-    <color name="mesh_stroke">#2E3A4D</color>
+    <!-- Surfaces — deep navy, cleaner separation -->
+    <color name="mesh_bg">#0B0F17</color>
+    <color name="mesh_bg_top">#121827</color>
+    <color name="mesh_bg_bottom">#080B12</color>
+    <color name="mesh_bg_glow">#1A3DDBB3</color>
+    <color name="mesh_surface">#161D2B</color>
+    <color name="mesh_surface_elevated">#1C2536</color>
+    <color name="mesh_card">#222C3F</color>
+    <color name="mesh_stroke">#3D4A63</color>
+    <color name="mesh_stroke_subtle">#2A3448</color>
+    <color name="mesh_card_stroke">#384560</color>
 
     <!-- Text -->
-    <color name="mesh_on_surface">#E8EEF4</color>
-    <color name="mesh_on_surface_variant">#8B9CB3</color>
-    <color name="mesh_text_dim">#6B7C93</color>
+    <color name="mesh_on_surface">#F4F7FB</color>
+    <color name="mesh_on_surface_variant">#9BA8BC</color>
+    <color name="mesh_text_dim">#6B7A92</color>
 
     <!-- Accent -->
-    <color name="mesh_primary">#38BDF8</color>
-    <color name="mesh_primary_container">#0C4A6E</color>
-    <color name="mesh_teal">#2DD4BF</color>
-    <color name="mesh_teal_light">#5EEAD4</color>
-    <color name="mesh_amber">#FBBF24</color>
-    <color name="mesh_success">#34D399</color>
+    <color name="mesh_primary">#5B9EFF</color>
+    <color name="mesh_primary_glow">#405B9EFF</color>
+    <color name="mesh_primary_container">#1A3A6B</color>
+    <color name="mesh_teal">#3DDBB3</color>
+    <color name="mesh_teal_light">#7AEFD4</color>
+    <color name="mesh_teal_glow">#333DDBB3</color>
+    <color name="mesh_amber">#FFCA58</color>
+    <color name="mesh_amber_soft">#33FFCA58</color>
+    <color name="mesh_success">#4ADE80</color>
+    <color name="mesh_nav_selected">#243DDBB3</color>
 
     <!-- Emergency -->
-    <color name="mesh_emergency">#EF4444</color>
-    <color name="mesh_emergency_dark">#DC2626</color>
-    <color name="mesh_emergency_glow">#33EF4444</color>
+    <color name="mesh_emergency">#FF5C5C</color>
+    <color name="mesh_emergency_dark">#E04545</color>
+    <color name="mesh_emergency_glow">#40FF5C5C</color>
+
+    <!-- ICE medical cards in feed -->
+    <color name="mesh_ice_card">#2A3528</color>
+    <color name="mesh_ice_text">#FDE68A</color>
+
+    <!-- Transport channel dots -->
+    <color name="mesh_channel_active">#4ADE80</color>
+    <color name="mesh_channel_search">#FFCA58</color>
+    <color name="mesh_channel_off">#4A5568</color>
+    <color name="mesh_channel_error">#FF5C5C</color>
 
     <!-- Legacy aliases -->
     <color name="purple_200">#FFBB86FC</color>
