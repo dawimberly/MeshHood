@@ -3,6 +3,7 @@ package com.meshhood
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.widget.Toast
 
 object MapsHelper {
     private const val GOOGLE_MAPS_PACKAGE = "com.google.android.apps.maps"
@@ -38,16 +39,33 @@ object MapsHelper {
         }
     }
 
-    /** Search Google Maps near [lat],[lon], or near the user when coords are omitted. */
-    fun searchNearby(context: Context, query: String, lat: Double? = null, lon: Double? = null) {
-        val encoded = Uri.encode(query.trim())
-        if (encoded.isEmpty()) return
-        val uri = if (lat != null && lon != null) {
-            Uri.parse("geo:$lat,$lon?q=$encoded")
-        } else {
-            Uri.parse("geo:0,0?q=$encoded")
+    /**
+     * Search Google Maps near [lat],[lon]. Requires valid coords — never opens at (0,0) or a
+     * default city. Returns false when location is missing (caller should show a toast).
+     */
+    fun searchNearby(
+        context: Context,
+        query: String,
+        lat: Double?,
+        lon: Double?,
+        noLocationMessage: Int = R.string.map_turn_on_location,
+    ): Boolean {
+        val trimmed = query.trim()
+        if (trimmed.isEmpty()) return false
+        if (!hasUsableCoords(lat, lon)) {
+            Toast.makeText(context, noLocationMessage, Toast.LENGTH_SHORT).show()
+            return false
         }
+        val latVal = lat!!
+        val lonVal = lon!!
+        val anchoredQuery = Uri.encode("$trimmed near $latVal,$lonVal")
+        val uri = Uri.parse(
+            "https://www.google.com/maps/search/?api=1" +
+                "&query=$anchoredQuery" +
+                "&center=$latVal,$lonVal",
+        )
         launchMapsIntent(context, Intent(Intent.ACTION_VIEW, uri))
+        return true
     }
 
     /** Great-circle distance in meters between two WGS84 points. */
@@ -101,6 +119,12 @@ object MapsHelper {
         val intent = Intent(Intent.ACTION_VIEW, Uri.parse("geo:$lat,$lon?q=$q"))
         intent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         context.startActivity(intent)
+    }
+
+    internal fun hasUsableCoords(lat: Double?, lon: Double?): Boolean {
+        if (lat == null || lon == null) return false
+        if (kotlin.math.abs(lat) > 90.0 || kotlin.math.abs(lon) > 180.0) return false
+        return kotlin.math.abs(lat) > 0.001 || kotlin.math.abs(lon) > 0.001
     }
 
     private fun launchMapsIntent(context: Context, intent: Intent) {

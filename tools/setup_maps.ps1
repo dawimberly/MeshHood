@@ -33,11 +33,14 @@ if (Test-Path $Keytool) {
 if (-not $ApiKey) {
     Write-Host "Steps:" -ForegroundColor Cyan
     Write-Host "  1. Enable Maps SDK for Android (browser opening...)"
-    Write-Host "  2. Credentials -> Create API key -> Restrict to Android app"
+    Write-Host "  2. Enable Places API (legacy) for emergency facility pins"
+    Write-Host "  3. Credentials -> Create API key -> Restrict to Android app"
     Write-Host "     Package: com.meshhood  +  SHA-1 above"
-    Write-Host "  3. Run:  tools\setup_maps.cmd YOUR_API_KEY"
+    Write-Host "  4. Run:  tools\setup_maps.cmd YOUR_API_KEY"
     Write-Host ""
     Start-Process "https://console.cloud.google.com/apis/library/maps-android-backend.googleapis.com"
+    Start-Sleep -Milliseconds 800
+    Start-Process "https://console.cloud.google.com/apis/library/places-backend.googleapis.com"
     Start-Sleep -Milliseconds 800
     Start-Process "https://console.cloud.google.com/apis/credentials"
     exit 0

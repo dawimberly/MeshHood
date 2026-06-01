@@ -6,6 +6,8 @@ import android.content.Context
 import android.content.Intent
 import android.content.ServiceConnection
 import android.content.pm.PackageManager
+import android.graphics.Bitmap
+import android.graphics.Canvas
 import android.os.Bundle
 import android.os.IBinder
 import android.view.View
@@ -19,6 +21,7 @@ import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
 import com.google.android.gms.maps.SupportMapFragment
+import com.google.android.gms.maps.model.BitmapDescriptor
 import com.google.android.gms.maps.model.BitmapDescriptorFactory
 import com.google.android.gms.maps.model.LatLng
 import com.google.android.gms.maps.model.Marker
@@ -41,6 +44,10 @@ class MapActivity : AppCompatActivity(), MeshService.MeshCallback, OnMapReadyCal
     private lateinit var offlineMapsCard: MaterialCardView
     private val peerMarkers = mutableMapOf<String, Marker>()
     private val feedMarkers = mutableMapOf<String, Marker>()
+    private val emergencyMarkers = mutableMapOf<String, Marker>()
+    private var emergencyFacilityIcon: BitmapDescriptor? = null
+    private var emergencyFetchInFlight = false
+    private var lastEmergencyAnchor: Pair<Double, Double>? = null
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
@@ -117,15 +124,26 @@ class MapActivity : AppCompatActivity(), MeshService.MeshCallback, OnMapReadyCal
         }
 
         map.setOnMarkerClickListener { marker ->
-            val tag = marker.tag as? FeedMarkerTag
-            val label = marker.title ?: getString(R.string.map_title)
-            val snippet = marker.snippet
-            showPinActions(
-                label = label,
-                lat = marker.position.latitude,
-                lon = marker.position.longitude,
-                bodySnippet = if (tag != null) snippet else null,
-            )
+            when (val tag = marker.tag) {
+                is EmergencyFacilityTag -> showEmergencyFacilityActions(tag.facility)
+                is FeedMarkerTag -> {
+                    val label = marker.title ?: getString(R.string.map_title)
+                    showPinActions(
+                        label = label,
+                        lat = marker.position.latitude,
+                        lon = marker.position.longitude,
+                        bodySnippet = marker.snippet,
+                    )
+                }
+                else -> {
+                    val label = marker.title ?: getString(R.string.map_title)
+                    showPinActions(
+                        label = label,
+                        lat = marker.position.latitude,
+                        lon = marker.position.longitude,
+                    )
+                }
+            }
             true
         }
 
@@ -154,6 +172,7 @@ class MapActivity : AppCompatActivity(), MeshService.MeshCallback, OnMapReadyCal
 
         refreshPeerMarkers(map, service)
         refreshFeedMarkers(map, service)
+        refreshEmergencyFacilityMarkers(map)
 
         val self = service.myLocationSnapshot()
         val peers = service.peersWithLocation()
@@ -274,20 +293,139 @@ class MapActivity : AppCompatActivity(), MeshService.MeshCallback, OnMapReadyCal
         MapPinKind.NEIGHBOR -> BitmapDescriptorFactory.HUE_GREEN
     }
 
-    private fun searchAnchor(): Pair<Double, Double>? {
+    private fun userLocationAnchor(): Pair<Double, Double>? {
         val service = meshService ?: return null
         service.myLocationSnapshot()?.takeIf { it.hasCoords() }?.let { return it.lat to it.lon }
-        val peers = service.peersWithLocation()
-        if (peers.isNotEmpty()) {
-            val first = peers.values.first()
-            return first.lat to first.lon
-        }
-        feedMarkers.values.firstOrNull()?.let { return it.position.latitude to it.position.longitude }
         return null
     }
 
+    private fun refreshEmergencyFacilityMarkers(map: GoogleMap) {
+        val anchor = userLocationAnchor() ?: run {
+            clearEmergencyMarkers()
+            lastEmergencyAnchor = null
+            return
+        }
+        if (emergencyFetchInFlight && anchor == lastEmergencyAnchor) return
+        if (anchor != lastEmergencyAnchor) {
+            clearEmergencyMarkers()
+            lastEmergencyAnchor = anchor
+        }
+        if (emergencyFetchInFlight) return
+        emergencyFetchInFlight = true
+        EmergencyPlacesCache.fetchNearby(
+            context = this,
+            lat = anchor.first,
+            lon = anchor.second,
+        ) { result ->
+            runOnUiThread {
+                emergencyFetchInFlight = false
+                when (result) {
+                    is EmergencyPlacesCache.Result.Success,
+                    is EmergencyPlacesCache.Result.Cached,
+                    -> {
+                        val facilities = when (result) {
+                            is EmergencyPlacesCache.Result.Success -> result.facilities
+                            is EmergencyPlacesCache.Result.Cached -> result.facilities
+                            else -> emptyList()
+                        }
+                        applyEmergencyFacilityMarkers(map, facilities)
+                    }
+                    is EmergencyPlacesCache.Result.PlacesDisabled -> {
+                        mapSetupHint.visibility = View.VISIBLE
+                        mapSetupHint.text = result.message
+                    }
+                    is EmergencyPlacesCache.Result.ApiKeyMissing -> {
+                        mapSetupHint.visibility = View.VISIBLE
+                        mapSetupHint.text = result.message
+                    }
+                    is EmergencyPlacesCache.Result.Error -> {
+                        // Silent on transient errors; mesh pins still show.
+                    }
+                }
+            }
+        }
+    }
+
+    private fun applyEmergencyFacilityMarkers(
+        map: GoogleMap,
+        facilities: List<EmergencyPlacesCache.Facility>,
+    ) {
+        val icon = emergencyFacilityMarkerIcon()
+        val activeIds = mutableSetOf<String>()
+        for (facility in facilities) {
+            activeIds.add(facility.id)
+            val position = LatLng(facility.lat, facility.lon)
+            val snippet = facilitySnippet(facility)
+            val existing = emergencyMarkers[facility.id]
+            if (existing != null) {
+                existing.position = position
+                existing.title = facility.name
+                existing.snippet = snippet
+                existing.tag = EmergencyFacilityTag(facility)
+            } else {
+                val marker = map.addMarker(
+                    MarkerOptions()
+                        .position(position)
+                        .title(facility.name)
+                        .snippet(snippet)
+                        .icon(icon)
+                        .zIndex(1f),
+                ) ?: continue
+                marker.tag = EmergencyFacilityTag(facility)
+                emergencyMarkers[facility.id] = marker
+            }
+        }
+        emergencyMarkers.keys.filter { it !in activeIds }.forEach { id ->
+            emergencyMarkers.remove(id)?.remove()
+        }
+    }
+
+    private fun clearEmergencyMarkers() {
+        emergencyMarkers.values.forEach { it.remove() }
+        emergencyMarkers.clear()
+    }
+
+    private fun facilitySnippet(facility: EmergencyPlacesCache.Facility): String {
+        val typeLabel = when (facility.category) {
+            EmergencyPlacesCache.Category.HOSPITAL -> getString(R.string.map_marker_hospital_snippet)
+            EmergencyPlacesCache.Category.PHARMACY -> getString(R.string.map_marker_pharmacy_snippet)
+            EmergencyPlacesCache.Category.FIRE_STATION -> getString(R.string.map_marker_fire_snippet)
+            EmergencyPlacesCache.Category.SHELTER -> getString(R.string.map_marker_shelter_facility_snippet)
+        }
+        val address = facility.address.trim()
+        return if (address.isEmpty()) typeLabel else "$typeLabel · $address"
+    }
+
+    private fun emergencyFacilityMarkerIcon(): BitmapDescriptor {
+        emergencyFacilityIcon?.let { return it }
+        val drawable = ContextCompat.getDrawable(this, R.drawable.ic_map_emergency_facility)
+            ?: return BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_AZURE).also {
+                emergencyFacilityIcon = it
+            }
+        val size = (resources.displayMetrics.density * 36).toInt().coerceAtLeast(32)
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        drawable.setBounds(0, 0, size, size)
+        drawable.draw(canvas)
+        return BitmapDescriptorFactory.fromBitmap(bitmap).also { emergencyFacilityIcon = it }
+    }
+
+    private fun showEmergencyFacilityActions(facility: EmergencyPlacesCache.Facility) {
+        val message = facilitySnippet(facility)
+        AlertDialog.Builder(this)
+            .setTitle(facility.name)
+            .setMessage(message)
+            .setPositiveButton(R.string.map_navigate_here) { _, _ ->
+                MapsHelper.navigateTo(this, facility.lat, facility.lon)
+            }
+            .setNeutralButton(R.string.map_open_system) { _, _ ->
+                MapsHelper.openInGoogleMaps(this, facility.lat, facility.lon, facility.name)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
     private fun showSearchNearbyMenu() {
-        val anchor = searchAnchor()
         val options = arrayOf(
             getString(R.string.map_search_hospital),
             getString(R.string.map_search_shelter),
@@ -297,11 +435,8 @@ class MapActivity : AppCompatActivity(), MeshService.MeshCallback, OnMapReadyCal
             .setTitle(R.string.map_search_nearby)
             .setItems(options) { _, which ->
                 val query = options[which]
-                if (anchor != null) {
-                    MapsHelper.searchNearby(this, query, anchor.first, anchor.second)
-                } else {
-                    MapsHelper.searchNearby(this, query)
-                }
+                val coords = userLocationAnchor()
+                MapsHelper.searchNearby(this, query, coords?.first, coords?.second)
             }
             .show()
     }
@@ -371,6 +506,8 @@ class MapActivity : AppCompatActivity(), MeshService.MeshCallback, OnMapReadyCal
     private enum class MapPinKind { AGENCY, SHELTER, NEIGHBOR, EMERGENCY }
 
     private data class FeedMarkerTag(val kind: MapPinKind, val body: String)
+
+    private data class EmergencyFacilityTag(val facility: EmergencyPlacesCache.Facility)
 
     companion object {
         private const val PREFS_MAP = "map_prefs"
