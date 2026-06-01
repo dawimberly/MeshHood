@@ -125,7 +125,11 @@ class CellularTransport(
             return false
         }
         val loc = when {
-            lat != null && lon != null -> " Location: $lat,$lon."
+            MapsHelper.hasUsableCoords(lat, lon) -> {
+                val latVal = lat!!
+                val lonVal = lon!!
+                " Location: $latVal,$lonVal. ${MapsHelper.emergencyLocationLine(latVal, lonVal)}"
+            }
             else -> ""
         }
         val med = buildString {

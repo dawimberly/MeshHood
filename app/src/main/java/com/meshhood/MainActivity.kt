@@ -184,6 +184,16 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
                 false
             }
         }
+        feedAdapter.onOpenMapsClick = { line ->
+            val lat = line.mapLat
+            val lon = line.mapLon
+            if (lat != null && lon != null) {
+                MapsHelper.openInGoogleMaps(this, lat, lon, line.sender)
+            }
+        }
+        feedAdapter.onLinkClick = { url ->
+            MapsHelper.openLocationLink(this, url)
+        }
         feedSortRecentButton.setOnClickListener { onFeedSortSelected(FeedSort.RECENT) }
         feedSortNearbyButton.setOnClickListener { onFeedSortSelected(FeedSort.NEARBY) }
         inputField = findViewById(R.id.inputField)

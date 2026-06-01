@@ -2,11 +2,18 @@ package com.meshhood
 
 import android.content.Context
 import android.graphics.Typeface
+import android.text.SpannableString
+import android.text.Spanned
+import android.text.method.LinkMovementMethod
+import android.text.style.ClickableSpan
 import android.view.View
 import android.widget.TextView
 import androidx.core.content.ContextCompat
+import com.google.android.material.button.MaterialButton
 
 object FeedStyler {
+
+    private val MAPS_URL_PATTERN = Regex("""https://www\.google\.com/maps[^\s]+""")
 
     fun bindCard(
         context: Context,
@@ -15,11 +22,13 @@ object FeedStyler {
         timeText: TextView,
         bodyText: TextView,
         badgeText: TextView,
+        openMapsButton: MaterialButton?,
         line: FeedLine,
+        onOpenMapsClick: (() -> Unit)? = null,
+        onLinkClick: ((String) -> Unit)? = null,
     ) {
         val parts = line.displayParts()
         senderText.text = parts.sender
-        bodyText.text = parts.text
         if (parts.time.isBlank()) {
             timeText.visibility = View.GONE
             timeText.text = ""
@@ -31,6 +40,7 @@ object FeedStyler {
         val timeFg = ContextCompat.getColor(context, R.color.mesh_text_dim)
         timeText.setTextColor(timeFg)
 
+        var accentFg = ContextCompat.getColor(context, R.color.mesh_on_surface_variant)
         when (line.kind) {
             FeedKind.NEIGHBOR -> {
                 cardRoot.setBackgroundResource(R.drawable.feed_card_neighbor)
@@ -74,6 +84,7 @@ object FeedStyler {
             FeedKind.AGENCY -> {
                 cardRoot.setBackgroundResource(R.drawable.feed_card_agency)
                 val agencyFg = ContextCompat.getColor(context, R.color.mesh_primary)
+                accentFg = agencyFg
                 senderText.setTextColor(agencyFg)
                 bodyText.setTextColor(agencyFg)
                 senderText.setTypeface(null, Typeface.BOLD)
@@ -89,6 +100,7 @@ object FeedStyler {
             FeedKind.EMERGENCY -> {
                 cardRoot.setBackgroundResource(R.drawable.feed_card_emergency)
                 val emergencyFg = ContextCompat.getColor(context, R.color.mesh_emergency)
+                accentFg = emergencyFg
                 senderText.setTextColor(emergencyFg)
                 bodyText.setTextColor(emergencyFg)
                 senderText.setTypeface(null, Typeface.BOLD)
@@ -102,6 +114,49 @@ object FeedStyler {
                 )
             }
         }
+
+        val showMapsActions = line.hasMapCoords() &&
+            (line.kind == FeedKind.EMERGENCY || line.kind == FeedKind.AGENCY)
+        if (showMapsActions) {
+            applyMapsLinks(bodyText, parts.text, accentFg, onLinkClick)
+            openMapsButton?.let { button ->
+                button.visibility = View.VISIBLE
+                button.setTextColor(accentFg)
+                button.setOnClickListener { onOpenMapsClick?.invoke() }
+            }
+        } else {
+            bodyText.text = parts.text
+            bodyText.movementMethod = null
+            openMapsButton?.visibility = View.GONE
+            openMapsButton?.setOnClickListener(null)
+        }
+    }
+
+    private fun applyMapsLinks(
+        textView: TextView,
+        text: String,
+        linkColor: Int,
+        onLinkClick: ((String) -> Unit)?,
+    ) {
+        val match = MAPS_URL_PATTERN.find(text)
+        if (match == null || onLinkClick == null) {
+            textView.text = text
+            textView.movementMethod = null
+            return
+        }
+        val url = match.value
+        val spannable = SpannableString(text)
+        spannable.setSpan(
+            object : ClickableSpan() {
+                override fun onClick(widget: View) = onLinkClick(url)
+            },
+            match.range.first,
+            match.range.last + 1,
+            Spanned.SPAN_EXCLUSIVE_EXCLUSIVE,
+        )
+        textView.text = spannable
+        textView.setLinkTextColor(linkColor)
+        textView.movementMethod = LinkMovementMethod.getInstance()
     }
 
     private fun hideBadge(badgeText: TextView) {

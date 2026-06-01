@@ -14,6 +14,8 @@ Receivers store `locshare` only when the sender is in their local mutual set. Fl
 
 **Emergency** broadcasts always attach live GPS (and ICE when configured), regardless of mutual prefs.
 
+When coordinates are available, the SOS message includes a Google Maps link (`Open in Maps: https://…`). Tapping the link or the **Open in Google Maps** button on an emergency card opens the location in the Google Maps app. If you have already downloaded offline map tiles for that area in Google Maps, the pin works without cell data within the downloaded region.
+
 ## Travel
 
 On a significant area move (state / ZIP / locality change), pending offers are cleared and cached peer pins for non-mutual peers are dropped. Mutual pairs stay until revoked.

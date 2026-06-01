@@ -79,11 +79,38 @@ object MapsHelper {
         return earthRadius * 2 * kotlin.math.atan2(kotlin.math.sqrt(a), kotlin.math.sqrt(1 - a))
     }
 
-    /** Best-effort lat/lon extraction from free text (e.g. agency alert bodies). */
+    /** Google Maps search URL — opens in the Maps app; works offline when tiles are downloaded. */
+    fun locationSearchUrl(lat: Double, lon: Double): String =
+        "https://www.google.com/maps/search/?api=1&query=$lat,$lon"
+
+    /** Human-readable line appended to SOS / emergency broadcasts with coordinates. */
+    fun emergencyLocationLine(lat: Double, lon: Double): String =
+        "Open in Maps: ${locationSearchUrl(lat, lon)}"
+
+    /** Best-effort lat/lon extraction from free text (e.g. agency alert bodies, maps URLs). */
     fun parseCoordsFromText(text: String): Pair<Double, Double>? {
+        Regex("""[?&]query=(-?\d{1,2}\.\d+)\s*,\s*(-?\d{1,3}\.\d+)""").find(text)?.let { match ->
+            return coordsFromMatch(match.groupValues[1], match.groupValues[2])
+        }
         val match = Regex("""(-?\d{1,2}\.\d{3,})\s*,\s*(-?\d{1,3}\.\d{3,})""").find(text) ?: return null
-        val lat = match.groupValues[1].toDoubleOrNull() ?: return null
-        val lon = match.groupValues[2].toDoubleOrNull() ?: return null
+        return coordsFromMatch(match.groupValues[1], match.groupValues[2])
+    }
+
+    /** Opens a maps link or free-text coords in Google Maps when available. */
+    fun openLocationLink(context: Context, link: String) {
+        parseCoordsFromText(link)?.let { (lat, lon) ->
+            openInGoogleMaps(context, lat, lon)
+            return
+        }
+        val trimmed = link.trim()
+        if (trimmed.startsWith("http") || trimmed.startsWith("geo:")) {
+            launchMapsIntent(context, Intent(Intent.ACTION_VIEW, Uri.parse(trimmed)))
+        }
+    }
+
+    private fun coordsFromMatch(latStr: String, lonStr: String): Pair<Double, Double>? {
+        val lat = latStr.toDoubleOrNull() ?: return null
+        val lon = lonStr.toDoubleOrNull() ?: return null
         if (kotlin.math.abs(lat) > 90.0 || kotlin.math.abs(lon) > 180.0) return null
         return lat to lon
     }

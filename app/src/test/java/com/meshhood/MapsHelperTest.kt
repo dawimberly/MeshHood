@@ -34,4 +34,28 @@ class MapsHelperTest {
         assertTrue(url.contains("zoom=14"))
         assertTrue(url.contains("api=1"))
     }
+
+    @Test
+    fun locationSearchUrl_usesSearchApiWithCoords() {
+        val url = MapsHelper.locationSearchUrl(34.4358, -119.8276)
+        assertTrue(url.contains("maps/search/?api=1"))
+        assertTrue(url.contains("query=34.4358,-119.8276"))
+    }
+
+    @Test
+    fun emergencyLocationLine_includesOpenInMapsPrefix() {
+        val line = MapsHelper.emergencyLocationLine(34.4358, -119.8276)
+        assertTrue(line.startsWith("Open in Maps: "))
+        assertTrue(line.contains("query=34.4358,-119.8276"))
+    }
+
+    @Test
+    fun parseCoordsFromText_findsQueryParamInMapsUrl() {
+        val parsed = MapsHelper.parseCoordsFromText(
+            "Open in Maps: https://www.google.com/maps/search/?api=1&query=34.43580,-119.82764",
+        )
+        assertTrue(parsed != null)
+        assertTrue(parsed!!.first in 34.0..35.0)
+        assertTrue(parsed.second < -119.0)
+    }
 }

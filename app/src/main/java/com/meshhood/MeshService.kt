@@ -2851,10 +2851,16 @@ class MeshService : Service() {
     @SuppressLint("MissingPermission")
     fun sendEmergency() {
         val location = lastKnownLocation()
-        val payload = if (location != null) {
-            "\uD83D\uDEA8 NEED HELP — at ${"%.5f".format(location.first)}, ${"%.5f".format(location.second)}"
-        } else {
-            "\uD83D\uDEA8 NEED HELP — location unknown"
+        val payload = buildString {
+            if (location != null && MapsHelper.hasUsableCoords(location.first, location.second)) {
+                val lat = location.first
+                val lon = location.second
+                append("\uD83D\uDEA8 NEED HELP — at ${"%.5f".format(lat)}, ${"%.5f".format(lon)}")
+                append('\n')
+                append(MapsHelper.emergencyLocationLine(lat, lon))
+            } else {
+                append("\uD83D\uDEA8 NEED HELP — location unknown")
+            }
         }
         val id = newId()
         markSeen(id)
