@@ -1373,19 +1373,13 @@ class MeshService : Service() {
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
         if (BuildConfig.AGENCY_GATEWAY && isGatewayHeadless()) {
-            val openUi = gatewayLauncherIntent()
             val openPending = PendingIntent.getActivity(
                 this,
                 1,
-                openUi,
+                gatewayLauncherIntent(),
                 PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
             )
-            builder.setContentIntent(openPending)
-            builder.addAction(
-                0,
-                getString(R.string.gateway_notification_open_official_alerts),
-                openPending,
-            )
+            applyGatewayHeadlessNotificationActions(builder, this, openPending)
         }
         return builder.build()
     }
