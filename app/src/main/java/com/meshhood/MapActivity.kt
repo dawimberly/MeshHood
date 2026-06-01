@@ -12,6 +12,7 @@ import android.view.View
 import android.widget.ImageButton
 import android.widget.TextView
 import android.widget.Toast
+import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
 import com.google.android.gms.maps.CameraUpdateFactory
@@ -33,6 +34,7 @@ class MapActivity : AppCompatActivity(), MeshService.MeshCallback, OnMapReadyCal
 
     private lateinit var shareSwitch: SwitchMaterial
     private lateinit var statusText: TextView
+    private lateinit var searchNearbyButton: MaterialButton
     private lateinit var openSystemMapsButton: MaterialButton
     private lateinit var mapSetupHint: TextView
     private val peerMarkers = mutableMapOf<String, Marker>()
@@ -58,6 +60,7 @@ class MapActivity : AppCompatActivity(), MeshService.MeshCallback, OnMapReadyCal
 
         shareSwitch = findViewById(R.id.shareLocationSwitch)
         statusText = findViewById(R.id.mapStatusText)
+        searchNearbyButton = findViewById(R.id.searchNearbyButton)
         openSystemMapsButton = findViewById(R.id.openSystemMapsButton)
         mapSetupHint = findViewById(R.id.mapSetupHint)
 
@@ -72,19 +75,11 @@ class MapActivity : AppCompatActivity(), MeshService.MeshCallback, OnMapReadyCal
             .findFragmentById(R.id.mapFragment) as SupportMapFragment
         mapFragment.getMapAsync(this)
 
-        shareSwitch.setOnCheckedChangeListener { _, checked ->
-            val service = meshService ?: return@setOnCheckedChangeListener
-            if (service.isLocationSharing() == checked) return@setOnCheckedChangeListener
-            service.setLocationSharing(checked)
-            Toast.makeText(
-                this,
-                if (checked) R.string.location_share_on_toast else R.string.location_share_off_toast,
-                Toast.LENGTH_SHORT,
-            ).show()
-            syncUi()
-        }
+        shareSwitch.visibility = View.GONE
+        shareSwitch.isClickable = false
 
-        openSystemMapsButton.setOnClickListener { openSelfInGoogleMaps() }
+        searchNearbyButton.setOnClickListener { showSearchNearbyMenu() }
+        openSystemMapsButton.setOnClickListener { showSelfPinActions() }
 
         bindService(Intent(this, MeshService::class.java), connection, Context.BIND_AUTO_CREATE)
     }
@@ -102,13 +97,16 @@ class MapActivity : AppCompatActivity(), MeshService.MeshCallback, OnMapReadyCal
         }
 
         map.setOnMarkerClickListener { marker ->
-            MapsHelper.openInGoogleMaps(
-                this,
-                marker.position.latitude,
-                marker.position.longitude,
-                marker.title ?: "",
+            showPinActions(
+                label = marker.title ?: getString(R.string.map_title),
+                lat = marker.position.latitude,
+                lon = marker.position.longitude,
             )
             true
+        }
+
+        map.setOnMapLoadedCallback {
+            mapSetupHint.visibility = View.GONE
         }
 
         refreshMarkers()
@@ -116,10 +114,11 @@ class MapActivity : AppCompatActivity(), MeshService.MeshCallback, OnMapReadyCal
 
     private fun syncUi() {
         val service = meshService ?: return
-        shareSwitch.isChecked = service.isLocationSharing()
-        statusText.text = when {
-            service.isLocationSharing() -> getString(R.string.map_sharing_hint)
-            else -> getString(R.string.map_hidden_hint)
+        val n = service.mutualLocationPeers().size
+        statusText.text = if (n > 0) {
+            getString(R.string.map_sharing_hint, n)
+        } else {
+            getString(R.string.map_hidden_hint)
         }
     }
 
@@ -168,7 +167,38 @@ class MapActivity : AppCompatActivity(), MeshService.MeshCallback, OnMapReadyCal
         }
     }
 
-    private fun openSelfInGoogleMaps() {
+    private fun searchAnchor(): Pair<Double, Double>? {
+        val service = meshService ?: return null
+        service.myLocationSnapshot()?.takeIf { it.hasCoords() }?.let { return it.lat to it.lon }
+        val peers = service.peersWithLocation()
+        if (peers.isNotEmpty()) {
+            val first = peers.values.first()
+            return first.lat to first.lon
+        }
+        return null
+    }
+
+    private fun showSearchNearbyMenu() {
+        val anchor = searchAnchor()
+        val options = arrayOf(
+            getString(R.string.map_search_hospital),
+            getString(R.string.map_search_shelter),
+            getString(R.string.map_search_pharmacy),
+        )
+        AlertDialog.Builder(this)
+            .setTitle(R.string.map_search_nearby)
+            .setItems(options) { _, which ->
+                val query = options[which]
+                if (anchor != null) {
+                    MapsHelper.searchNearby(this, query, anchor.first, anchor.second)
+                } else {
+                    MapsHelper.searchNearby(this, query)
+                }
+            }
+            .show()
+    }
+
+    private fun showSelfPinActions() {
         val service = meshService ?: return
         val snap = service.myLocationSnapshot() ?: run {
             Toast.makeText(this, R.string.map_no_location, Toast.LENGTH_SHORT).show()
@@ -178,7 +208,23 @@ class MapActivity : AppCompatActivity(), MeshService.MeshCallback, OnMapReadyCal
             Toast.makeText(this, R.string.map_no_location, Toast.LENGTH_SHORT).show()
             return
         }
-        MapsHelper.openInGoogleMaps(this, snap.lat, snap.lon, service.myName)
+        showPinActions(service.myName, snap.lat, snap.lon)
+    }
+
+    private fun showPinActions(label: String, lat: Double, lon: Double) {
+        val options = arrayOf(
+            getString(R.string.map_open_system),
+            getString(R.string.map_navigate_here),
+        )
+        AlertDialog.Builder(this)
+            .setTitle(getString(R.string.map_pin_actions_title, label))
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> MapsHelper.openInGoogleMaps(this, lat, lon, label)
+                    1 -> MapsHelper.navigateTo(this, lat, lon)
+                }
+            }
+            .show()
     }
 
     override fun onUpdate() {

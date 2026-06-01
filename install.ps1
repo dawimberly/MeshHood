@@ -1,5 +1,10 @@
 # Install app on phone (USB or Wi-Fi adb - run connect-wifi.cmd first for Wi-Fi)
 # Usage: connect-wifi.cmd OR plug in USB, then: install.cmd
+# Gateway edition: install_gateway.cmd
+
+param(
+    [switch]$GatewayOnly
+)
 
 $ErrorActionPreference = "Stop"
 Set-Location $PSScriptRoot
@@ -99,12 +104,19 @@ if ($javaHome) {
 }
 
 Write-Host ""
-Write-Host "=== MeshHood install ===" -ForegroundColor Cyan
+if ($GatewayOnly) {
+    Write-Host "=== MeshHood Gateway install ===" -ForegroundColor Cyan
+} else {
+    Write-Host "=== MeshHood install ===" -ForegroundColor Cyan
+}
 Write-Host "Project: $PWD"
 Write-Host ""
 
 $adb = Initialize-Adb
-$apk = "$PSScriptRoot\app\build\outputs\apk\debug\app-debug.apk"
+$flavor = if ($GatewayOnly) { "gateway" } else { "consumer" }
+$apk = "$PSScriptRoot\app\build\outputs\apk\$flavor\debug\app-$flavor-debug.apk"
+$assembleTask = if ($GatewayOnly) { "assembleGatewayDebug" } else { "assembleConsumerDebug" }
+$launchActivity = if ($GatewayOnly) { "com.meshhood.gateway/.AgencyGatewayActivity" } else { "com.meshhood/.MainActivity" }
 $hasDevice = $false
 
 if ($adb) {
@@ -115,7 +127,7 @@ if ($adb) {
     }
 }
 
-& "$PSScriptRoot\gradlew.bat" assembleDebug
+& "$PSScriptRoot\gradlew.bat" $assembleTask
 if ($LASTEXITCODE -ne 0) {
     Write-Host ""
     Write-Host "Build failed (exit $LASTEXITCODE)." -ForegroundColor Red
@@ -143,8 +155,12 @@ if ($hasDevice) {
     }
 
     Write-Host ""
-    Write-Host "Opening MeshHood on phone..." -ForegroundColor Cyan
-    & adb shell am start -n com.meshhood/.MainActivity | Out-Null
+    if ($GatewayOnly) {
+        Write-Host "Opening MeshHood Gateway on phone..." -ForegroundColor Cyan
+    } else {
+        Write-Host "Opening MeshHood on phone..." -ForegroundColor Cyan
+    }
+    & adb shell am start -n $launchActivity | Out-Null
 } else {
     Write-Host ""
     Write-Host "Built $apk" -ForegroundColor Green

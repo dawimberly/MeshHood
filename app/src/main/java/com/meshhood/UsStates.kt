@@ -2,6 +2,17 @@ package com.meshhood
 
 /** US states and DC for area profile spinners (stored as two-letter abbreviations). */
 object UsStates {
+    fun abbrFromName(name: String): String {
+        val idx = indexOf(name)
+        return if (idx > 0) abbrAt(idx) else ""
+    }
+
+    fun displayName(abbr: String): String {
+        val raw = abbr.trim()
+        if (raw.isEmpty()) return ""
+        return entries.firstOrNull { it.first.equals(raw, ignoreCase = true) }?.second ?: raw
+    }
+
     private val entries = listOf(
         "AL" to "Alabama",
         "AK" to "Alaska",
@@ -56,7 +67,7 @@ object UsStates {
         "WY" to "Wyoming",
     )
 
-    const val PLACEHOLDER = "Select state…"
+    const val PLACEHOLDER = "Select state..."
 
     fun labels(): List<String> =
         listOf(PLACEHOLDER) + entries.map { (abbr, name) -> "$name ($abbr)" }

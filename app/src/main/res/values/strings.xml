@@ -1,20 +1,23 @@
-<resources>
+﻿<resources>
     <string name="app_name">MeshHood</string>
     <string name="menu">More options</string>
     <string name="send">Send message</string>
 
-    <!-- Public local feed (generic — not tied to "neighborhood" geography) -->
-    <string name="feed_section_label">Neighborhood feed</string>
+    <!-- Public local feed -->
     <string name="feed_post_count">%1$d posts</string>
+    <string name="feed_badge_agency">Official</string>
+    <string name="feed_badge_emergency">Emergency</string>
     <string name="feed_title">Area</string>
-    <string name="area_picker_title">Switch area</string>
+    <string name="area_picker_title">View feed for</string>
     <string name="area_picker_button">Area</string>
-    <string name="area_picker_button_label">%1$s ▼</string>
+    <string name="area_picker_button_label">%1$s</string>
+    <string name="area_picker_selected">\u2022 </string>
+    <string name="area_picker_group">Group \u00b7 %1$s</string>
     <string name="feed_title_group">%1$s</string>
     <string name="feed_title_dm">Chat with %1$s</string>
     <string name="feed_scope_everyone">Everyone</string>
     <string name="feed_encrypted">Encrypted</string>
-    <string name="status_encrypted_dot">· encrypted</string>
+    <string name="status_encrypted_dot">- encrypted</string>
     <string name="feed_empty">No messages yet.\nYour mesh is listening for others.</string>
     <string name="feed_empty_group">No messages in this group yet.\nSay hello or check pinned posts.</string>
     <string name="feed_empty_dm">No direct messages yet.\nSend a private message below.</string>
@@ -29,6 +32,7 @@
     <string name="compose_hint">What\u2019s happening in your area?</string>
     <string name="recipient_default">Everyone</string>
     <string name="coordinator">Status</string>
+    <string name="coordinator_dialog_title">Coordinator · %1$s</string>
     <string name="nav_home">Home</string>
     <string name="nav_nearby">Nearby</string>
     <string name="nav_resources">Resources</string>
@@ -40,32 +44,50 @@
     <string name="cell_status_ready">Cell: ready</string>
     <string name="cell_status_offline">Cell: no data</string>
     <string name="cell_status_no_sim">Cell: no SIM</string>
+    <string name="cell_status_off">Cell: off</string>
+    <string name="cell_status_uplink_active">Cell: uplink active</string>
     <string name="emergency_lock_title">Need Help?</string>
     <string name="emergency_lock_hint">Confirm to alert the mesh and text your ICE contact if their phone number is on your Emergency Card. Works from the lock screen.</string>
     <string name="emergency_sent_toast">Emergency sent on mesh (+ SMS if ICE number set)</string>
     <string name="emergency_sms_sent">ICE contact notified by SMS</string>
     <string name="widget_sos_label">MeshHood SOS</string>
-    <string name="widget_sos_description">One-tap emergency — works from lock screen</string>
+    <string name="widget_sos_description">One-tap emergency - works from lock screen</string>
 
     <string name="mesh_signal_bars">Mesh %1$s</string>
     <string name="mesh_network_label">Mesh</string>
     <string name="mesh_network_wifi">WiFi</string>
     <string name="mesh_network_cell">5G</string>
+    <string name="mesh_network_gateway">Gateway</string>
+    <string name="gateway_mode_label">Gateway mode</string>
+    <string name="gateway_mode_hint">Advertise as LAN hub (role=gateway). Use on the phone tied to community WiFi - bridges mesh across WiFi, Bluetooth, and WiFi Direct.</string>
+    <string name="gateway_mode_on_toast">Gateway mode on - bridging all radios</string>
+    <string name="gateway_mode_off_toast">Gateway mode off - LAN-first when on WiFi</string>
     <string name="mesh_status_cd">Mesh signal strength</string>
     <string name="mesh_status_detail">%1$s, %2$d of %3$d signal bars</string>
+
+    <string name="network_readiness_cd">Network readiness</string>
+    <string name="network_readiness_ready">Ready</string>
+    <string name="network_readiness_limited">Limited</string>
+    <string name="network_readiness_searching">Searching</string>
+    <string name="network_readiness_offline">Offline</string>
+    <string name="network_readiness_help_cd">Network troubleshooting help</string>
+    <string name="network_readiness_help_title">Improve mesh connection</string>
+    <string name="network_readiness_help_body">• Turn on Bluetooth and stay within range of others.\n• Connect to Wi‑Fi on the same LAN as a gateway or relay.\n• Move closer to neighbors or a community hub phone.\n• Wait a minute while radios search — readiness turns green when a neighbor appears.\n• In Settings, enable Gateway mode only on the hub device tied to your Wi‑Fi.</string>
+    <string name="network_readiness_help_gateway">Gateway / headless hub: see docs/GATEWAY-HEADLESS.md in the MeshHood repo — run headless on a dedicated hub, or use ADB HEADLESS_ON on the gateway package.</string>
     <string name="neighbors_online">%1$d neighbors</string>
-    <string name="emergency_label">Emergency — Need Help</string>
+    <string name="emergency_label">Emergency - Need Help</string>
     <string name="emergency_subtitle">Alerts others nearby and shares your ICE card</string>
-    <string name="status_connecting">Connecting mesh…</string>
-    <string name="status_advertising">Advertising… waiting to connect</string>
+    <string name="status_connecting">Connecting mesh...</string>
+    <string name="status_advertising">BLE advertising - no device linked yet</string>
     <string name="status_connected">Connected</string>
     <string name="status_neighbors">%1$d neighbors</string>
 
     <string name="default_contact_name">Contact</string>
-    <string name="log_wrong_key">[encrypted — wrong area key]</string>
+    <string name="log_wrong_key">[encrypted - wrong area key]</string>
     <string name="notify_new_message">New message</string>
     <string name="notify_direct_message">Direct message from %1$s</string>
-    <string name="notify_emergency">🚨 Emergency nearby</string>
+    <string name="notify_emergency">Emergency nearby</string>
+    <string name="notify_agency">Official alert - %1$s</string>
     <string name="notify_area_status">Area status</string>
     <string name="channel_mesh_status">Mesh status</string>
     <string name="channel_mesh_desc">Keeps the local mesh active</string>
@@ -95,7 +117,7 @@
     <string name="profile_photo_vouch_progress">%1$d of 2 neighbor confirmations</string>
     <string name="profile_photo_vouch_action">Vouch for photo</string>
     <string name="profile_photo_vouch_done">Vouched for %1$s\'s photo</string>
-    <string name="profile_photo_verify_hint">Neighbors who know you can vouch from Directory or Menu → Vouch for photo.</string>
+    <string name="profile_photo_verify_hint">Neighbors who know you can vouch from Directory or Menu -&gt; Vouch for photo.</string>
     <string name="profile_photo_unverified">Photo not verified yet</string>
     <string name="menu_set_area">Set my area</string>
     <string name="menu_emergency_card">Emergency card</string>
@@ -135,24 +157,86 @@
     <string name="quick_area_required">Select a state, or enable location for rolling ZIP</string>
     <string name="quick_area_saved">Area saved</string>
     <string name="live_zip_value">Current ZIP (from location): %1$s</string>
-    <string name="live_zip_pending">Current ZIP: waiting for location…</string>
+    <string name="live_zip_pending">Current ZIP: waiting for location...</string>
     <string name="profile_area_hint">State is saved on your profile. ZIP rolls from location for feed order and message tags.</string>
 
     <string name="menu_map">Map</string>
     <string name="map_title">Area map</string>
     <string name="map_share_switch">Share location</string>
-    <string name="map_sharing_hint">Neighbors who share location appear as pins. Yours updates on the mesh (~45 min cache).</string>
-    <string name="map_hidden_hint">Your location is hidden. Turn on Share to help neighbors find you — or stay hidden for safety.</string>
+    <string name="map_sharing_hint">%1$d mutual contact(s) on the map. Location is pairwise only — use Contacts to request or accept.</string>
+    <string name="map_hidden_hint">No mutual location shares. Open Contacts, pick a neighbor, and tap Share location.</string>
+    <string name="map_open_contacts">Contacts</string>
     <string name="map_open_system">Open in Google Maps</string>
+    <string name="map_search_nearby">Search nearby</string>
+    <string name="map_navigate_here">Navigate here</string>
+    <string name="map_search_hospital">Hospital</string>
+    <string name="map_search_shelter">Shelter</string>
+    <string name="map_search_pharmacy">Pharmacy</string>
+    <string name="map_pin_actions_title">%1$s</string>
     <string name="map_tile_hint">Google Maps tiles cache on device while you use the app. Download offline areas in Google Maps for navigation without data.</string>
     <string name="map_api_key_missing">Add MAPS_API_KEY to local.properties (Maps SDK for Android). You can still open Google Maps below.</string>
+    <string name="map_auth_failed">Map tiles blocked by Google. In Cloud Console: enable Maps SDK for Android, then edit your API key -&gt; Android apps -&gt; package com.meshhood, SHA-1 E2:73:B3:70:AB:1B:89:DA:00:3B:76:76:99:30:E9:04:8E:CE:73:D2</string>
     <string name="map_peer_tap">Tap for directions in Maps</string>
-    <string name="map_no_location">Waiting for GPS…</string>
-    <string name="location_share_on_toast">Sharing location with mesh neighbors</string>
-    <string name="location_share_off_toast">Location hidden from neighbors</string>
-    <string name="location_share_label">Share my location on the map</string>
-    <string name="location_share_profile_hint">Off by default for safety. Emergencies always share location.</string>
-    <string name="profile_location_shared">Location shared (~%1$s ago)</string>
-    <string name="profile_location_hidden">Location hidden</string>
+    <string name="map_no_location">Waiting for GPS...</string>
+    <string name="location_share_on_toast">Location sharing started with mutual contacts</string>
+    <string name="location_share_off_toast">Stopped all mutual location shares</string>
+    <string name="location_share_label">Location on map</string>
+    <string name="location_share_profile_hint">Pairwise only: request or accept per neighbor in Contacts. Emergencies always share location.</string>
+    <string name="profile_location_shared">Mutual location (~%1$s ago)</string>
+    <string name="profile_location_hidden">No mutual location</string>
+    <string name="profile_location_pending_in">Wants to share location with you</string>
+    <string name="profile_location_pending_out">Location request sent</string>
+    <string name="profile_location_mutual">Sharing location mutually</string>
+    <string name="loc_offer_received">%1$s requested to share location</string>
+    <string name="loc_accept_received">%1$s accepted location sharing</string>
+    <string name="loc_action_request">Share location</string>
+    <string name="loc_action_accept">Accept location</string>
+    <string name="loc_action_reject">Decline</string>
+    <string name="loc_action_revoke">Stop sharing location</string>
+    <string name="loc_request_sent">Location request sent to %1$s</string>
+    <string name="loc_accept_sent">Now sharing location with %1$s</string>
+    <string name="loc_revoked">Stopped sharing location with %1$s</string>
     <string name="profile_open_maps">Open in Maps</string>
+
+    <!-- Common dialog actions -->
+    <string name="action_send">Send</string>
+    <string name="action_cancel">Cancel</string>
+    <string name="action_close">Close</string>
+    <string name="action_clear">Clear</string>
+    <string name="action_thank">Thank</string>
+
+    <!-- Permissions -->
+    <string name="permissions_denied">Permissions denied</string>
+    <string name="permissions_bluetooth_required">Bluetooth permissions required</string>
+
+    <!-- Recipient picker -->
+    <string name="recipient_picker_title">Send to</string>
+    <string name="recipient_group_fallback">Group</string>
+
+    <!-- Capacity picker -->
+    <string name="capacity_title">Your capacity</string>
+    <string name="capacity_full">Full - I can help</string>
+    <string name="capacity_limited">Limited - I can help a little</string>
+    <string name="capacity_homebound">Homebound - I mostly need help</string>
+    <string name="capacity_label_homebound">Homebound</string>
+    <string name="capacity_label_limited">Limited</string>
+
+    <!-- Clear feed -->
+    <string name="clear_feed_title">Clear feed?</string>
+    <string name="clear_feed_message">This removes the saved messages on this phone. Peers are kept.</string>
+
+    <!-- Call for help -->
+    <string name="call_help_hint">e.g. Shoveling Edna\'s driveway, Sat 9am - who\'s in?</string>
+
+    <!-- Toasts -->
+    <string name="toast_vouched_for">Vouched for %1$s</string>
+    <string name="toast_no_reputation">No reputation activity yet</string>
+    <string name="toast_thanked">Thanked %1$s</string>
+    <string name="toast_emergency_sent">Emergency broadcast sent</string>
+
+    <!-- Feed sort -->
+    <string name="feed_sort_recent">Recent</string>
+    <string name="feed_sort_nearby">Nearby</string>
+    <string name="feed_location_actions_title">Location</string>
 </resources>
+

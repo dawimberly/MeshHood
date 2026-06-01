@@ -1,0 +1,18 @@
+syntax = "proto3";
+
+package com.meshhood;
+
+option java_package = "com.meshhood.proto";
+option java_multiple_files = true;
+
+// Binary wire envelope — mirrors JSON MessageEnvelope (v, type, id, ttl, ts + payload).
+message MessageEnvelope {
+  int32 v = 1;
+  string type = 2;
+  string id = 3;
+  int32 ttl = 4;
+  int64 ts = 5;
+  // Type-specific fields (from, to, text, body, deviceId, messages, …).
+  // Scalars are plain strings; arrays/objects are JSON-encoded strings.
+  map<string, string> extra = 6;
+}

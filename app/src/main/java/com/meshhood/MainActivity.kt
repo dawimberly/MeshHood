@@ -1,8 +1,7 @@
-package com.meshhood
+﻿package com.meshhood
 
 import android.Manifest
 import android.graphics.Typeface
-import android.view.Gravity
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
@@ -27,6 +26,7 @@ import android.widget.TextView
 import android.widget.Toast
 import android.widget.ArrayAdapter
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import com.google.android.material.bottomsheet.BottomSheetDialog
 import com.google.android.material.button.MaterialButton
 import androidx.activity.OnBackPressedCallback
@@ -34,18 +34,24 @@ import androidx.activity.result.PickVisualMediaRequest
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.drawable.DrawableCompat
 
 class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
 
     private lateinit var statusText: TextView
     private lateinit var userNameText: TextView
     private lateinit var feedTitleText: TextView
-    private lateinit var areaPickerButton: MaterialButton
+    private lateinit var areaPickerRow: View
+    private lateinit var areaPickerLabel: TextView
     private lateinit var feedBackButton: ImageButton
     private lateinit var chatsIconButton: ImageButton
-    private lateinit var messageText: TextView
+    private lateinit var feedList: RecyclerView
+    private lateinit var feedEmptyText: TextView
     private lateinit var feedPostCountText: TextView
-    private lateinit var logScroll: ScrollView
+    private lateinit var feedSortRow: View
+    private lateinit var feedSortRecentButton: MaterialButton
+    private lateinit var feedSortNearbyButton: MaterialButton
+    private val feedAdapter = FeedAdapter()
     private lateinit var inputField: EditText
     private lateinit var sendButton: Button
     private lateinit var recipientButton: Button
@@ -54,6 +60,9 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
     private lateinit var transportStrip: View
     private lateinit var signalBars: List<View>
     private lateinit var meshNetworkLabel: TextView
+    private lateinit var networkReadinessDot: View
+    private lateinit var networkReadinessLabel: TextView
+    private lateinit var networkReadinessHelp: ImageButton
     private lateinit var neighborCountText: TextView
     private lateinit var bottomNavHome: View
     private lateinit var bottomNavNearby: View
@@ -124,8 +133,8 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         if (othersOk && locationOk) {
             startAndBindService()
         } else {
-            statusText.text = "Permissions denied"
-            Toast.makeText(this, "Bluetooth permissions required", Toast.LENGTH_LONG).show()
+            statusText.text = getString(R.string.permissions_denied)
+            Toast.makeText(this, R.string.permissions_bluetooth_required, Toast.LENGTH_LONG).show()
         }
     }
 
@@ -155,12 +164,28 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         statusText = findViewById(R.id.statusText)
         userNameText = findViewById(R.id.userNameText)
         feedTitleText = findViewById(R.id.feedTitleText)
-        areaPickerButton = findViewById(R.id.areaPickerButton)
+        areaPickerRow = findViewById(R.id.areaPickerRow)
+        areaPickerLabel = findViewById(R.id.areaPickerLabel)
         feedBackButton = findViewById(R.id.feedBackButton)
         chatsIconButton = findViewById(R.id.chatsIconButton)
-        messageText = findViewById(R.id.messageText)
+        feedList = findViewById(R.id.feedList)
+        feedEmptyText = findViewById(R.id.feedEmptyText)
         feedPostCountText = findViewById(R.id.feedPostCountText)
-        logScroll = findViewById(R.id.logScroll)
+        feedSortRow = findViewById(R.id.feedSortRow)
+        feedSortRecentButton = findViewById(R.id.feedSortRecentButton)
+        feedSortNearbyButton = findViewById(R.id.feedSortNearbyButton)
+        feedList.layoutManager = LinearLayoutManager(this)
+        feedList.adapter = feedAdapter
+        feedAdapter.onLineLongClick = { line ->
+            if (line.hasMapCoords()) {
+                showFeedLocationActions(line)
+                true
+            } else {
+                false
+            }
+        }
+        feedSortRecentButton.setOnClickListener { onFeedSortSelected(FeedSort.RECENT) }
+        feedSortNearbyButton.setOnClickListener { onFeedSortSelected(FeedSort.NEARBY) }
         inputField = findViewById(R.id.inputField)
         sendButton = findViewById(R.id.sendButton)
         recipientButton = findViewById(R.id.recipientButton)
@@ -175,7 +200,11 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
             findViewById(R.id.signalBar5),
         )
         meshNetworkLabel = findViewById(R.id.meshNetworkLabel)
+        networkReadinessDot = findViewById(R.id.networkReadinessDot)
+        networkReadinessLabel = findViewById(R.id.networkReadinessLabel)
+        networkReadinessHelp = findViewById(R.id.networkReadinessHelp)
         neighborCountText = findViewById(R.id.neighborCountText)
+        bindTransportStripPlaceholder()
         bottomNavHome = findViewById(R.id.bottomNavHome)
         bottomNavNearby = findViewById(R.id.bottomNavNearby)
         bottomNavResources = findViewById(R.id.bottomNavResources)
@@ -220,17 +249,17 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         coordinatorButton.setOnClickListener { onCoordinatorClicked() }
         menuButton.setOnClickListener { onFeedLongPress() }
         feedBackButton.setOnClickListener { returnToArea() }
-        areaPickerButton.setOnClickListener { onAreaPickerClicked() }
+        val openAreaPicker = View.OnClickListener { onAreaPickerClicked() }
+        areaPickerRow.setOnClickListener(openAreaPicker)
+        areaPickerLabel.setOnClickListener(openAreaPicker)
         chatsIconButton.setOnClickListener { onChatsClicked() }
         val focusComposer = {
             inputField.requestFocus()
-            logScroll.post { logScroll.fullScroll(ScrollView.FOCUS_DOWN) }
+            scrollFeedToBottom()
         }
-        logScroll.setOnClickListener { focusComposer() }
-        messageText.setOnClickListener { focusComposer() }
-        bottomNavHome.setOnClickListener {
-            selectNavTab(NavTab.HOME)
-        }
+        findViewById<View>(R.id.feedPanel).setOnClickListener { focusComposer() }
+        feedList.setOnClickListener { focusComposer() }
+        bottomNavHome.setOnClickListener { onHomeTabClicked() }
         bottomNavNearby.setOnClickListener {
             selectNavTab(NavTab.NEARBY)
             startActivity(Intent(this, MapActivity::class.java))
@@ -244,8 +273,8 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
             onAlertTabClicked()
         }
         selectNavTab(NavTab.HOME)
-        logScroll.setOnLongClickListener { onFeedLongPress(); true }
-        messageText.setOnLongClickListener { onFeedLongPress(); true }
+        feedList.setOnLongClickListener { onFeedLongPress(); true }
+        findViewById<View>(R.id.feedPanel).setOnLongClickListener { onFeedLongPress(); true }
 
         onBackPressedDispatcher.addCallback(this, object : OnBackPressedCallback(true) {
             override fun handleOnBackPressed() {
@@ -336,7 +365,11 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
     }
 
     private fun onAreaPickerClicked() {
-        val service = meshService ?: return
+        val service = meshService
+        if (service == null) {
+            Toast.makeText(this, R.string.status_connecting, Toast.LENGTH_SHORT).show()
+            return
+        }
         if (!service.hasLocalArea()) {
             showQuickAreaDialog(onDone = { showAreaPickerList() })
             return
@@ -349,12 +382,13 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         val options = service.feedScopeOptions()
         if (options.isEmpty()) return
         val scopes = options.map { it.first }
+        val selectedBullet = getString(R.string.area_picker_selected)
         val labels = options.map { (scope, label) ->
-            val mark = if (scope == service.feedScope) "● " else "   "
+            val mark = if (scope == service.feedScope) selectedBullet else "   "
             val name = when {
                 scope == MeshService.SCOPE_EVERYONE -> label
-                MeshZone.isZoneScope(scope) -> "📍 $label"
-                else -> "🏘️ $label"
+                MeshZone.isZoneScope(scope) -> label
+                else -> getString(R.string.area_picker_group, label)
             }
             mark + name
         }.toTypedArray()
@@ -366,7 +400,7 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
             .show()
     }
 
-    /** Compact state + ZIP setup — unlocks the geographic levels in Area. */
+    /** Compact state + ZIP setup - unlocks the geographic levels in Area. */
     private fun showQuickAreaDialog(onDone: (() -> Unit)? = null) {
         val service = meshService ?: return
         val zone = service.getMyZone()
@@ -477,17 +511,23 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         refreshUi()
     }
 
+    private fun onHomeTabClicked() {
+        returnToArea()
+        selectNavTab(NavTab.HOME)
+        scrollFeedToTop()
+    }
+
     private fun onRecipientClicked() {
         val service = meshService ?: return
         val peers = service.getPeers()
         val myGroups = service.myGroups()
-        val groupEntries = myGroups.map { g -> service.groupRecipient(g.id) to "🏘️ ${g.name}" }
+        val groupEntries = myGroups.map { g -> service.groupRecipient(g.id) to g.name }
         val names = listOf(MeshService.EVERYONE) + groupEntries.map { it.first } + peers
         val labels = listOf(MeshService.EVERYONE) +
             groupEntries.map { it.second } +
             peers.map { peerLabel(it) }
         androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("Send to")
+            .setTitle(getString(R.string.recipient_picker_title))
             .setItems(labels.toTypedArray()) { _, which ->
                 currentRecipient = names[which]
                 syncFeedScopeToRecipient()
@@ -512,7 +552,8 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         val service = meshService ?: return currentRecipient
         if (MeshService.EVERYONE == currentRecipient) return currentRecipient
         if (service.isGroupRecipient(currentRecipient)) {
-            return service.groupOf(service.groupIdFromRecipient(currentRecipient))?.name ?: "Group"
+            return service.groupOf(service.groupIdFromRecipient(currentRecipient))?.name
+                ?: getString(R.string.recipient_group_fallback)
         }
         return currentRecipient
     }
@@ -530,26 +571,26 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         val service = meshService ?: return name
         val r = service.reciprocityOf(name)
         if (r.given == 0 && r.received == 0) return name
-        val stars = if (r.given > 0) "  ${"⭐".repeat(r.given.coerceAtMost(5))}${if (r.given > 5) "+" else ""}" else ""
+        val stars = if (r.given > 0) "  ${"*".repeat(r.given.coerceAtMost(5))}${if (r.given > 5) "+" else ""}" else ""
         return "$name$stars  ${r.glyph}"
     }
 
     private fun onFeedLongPress() {
         val options = arrayOf(
-            "🙏 ${getString(R.string.menu_send_thanks)}",
-            "📣 ${getString(R.string.menu_call_help)}",
-            "👥 ${getString(R.string.menu_directory)}",
-            "🏘️ ${getString(R.string.menu_my_groups)}",
-            "➕ ${getString(R.string.menu_create_group)}",
-            "🏅 ${getString(R.string.menu_thanks_board)}",
-            "🫂 ${getString(R.string.menu_my_capacity)}",
-            "📍 ${getString(R.string.menu_set_area)}",
-            "🗺️ ${getString(R.string.menu_map)}",
-            "✏️ ${getString(R.string.menu_edit_profile)}",
-            "🆘 ${getString(R.string.menu_emergency_card)}",
-            "✓ ${getString(R.string.menu_vouch)}",
-            "📷 ${getString(R.string.menu_vouch_photo)}",
-            "🧹 ${getString(R.string.menu_clear_feed)}"
+            getString(R.string.menu_send_thanks),
+            getString(R.string.menu_call_help),
+            getString(R.string.menu_directory),
+            getString(R.string.menu_my_groups),
+            getString(R.string.menu_create_group),
+            getString(R.string.menu_thanks_board),
+            getString(R.string.menu_my_capacity),
+            getString(R.string.menu_set_area),
+            getString(R.string.menu_map),
+            getString(R.string.menu_edit_profile),
+            getString(R.string.menu_emergency_card),
+            getString(R.string.menu_vouch),
+            getString(R.string.menu_vouch_photo),
+            getString(R.string.menu_clear_feed),
         )
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setItems(options) { _, which ->
@@ -580,27 +621,31 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
     private fun onCallForHelp() {
         val service = meshService ?: return
         val input = EditText(this).apply {
-            hint = "e.g. Shoveling Edna's driveway, Sat 9am — who's in?"
+            hint = getString(R.string.call_help_hint)
         }
         androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("📣 Call for help")
+            .setTitle(getString(R.string.title_call_help))
             .setView(input)
-            .setPositiveButton("Send") { _, _ ->
+            .setPositiveButton(R.string.action_send) { _, _ ->
                 val task = input.text.toString().trim()
                 if (task.isNotEmpty()) service.callForHelp(task)
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton(R.string.action_cancel, null)
             .show()
     }
 
     private fun onMyStatus() {
         val service = meshService ?: return
-        val labels = arrayOf("🟢 Full — I can help", "🟡 Limited — I can help a little", "🏠 Homebound — I mostly need help")
+        val labels = arrayOf(
+            getString(R.string.capacity_full),
+            getString(R.string.capacity_limited),
+            getString(R.string.capacity_homebound),
+        )
         val values = arrayOf(MeshService.CAP_FULL, MeshService.CAP_LIMITED, MeshService.CAP_HOMEBOUND)
         val current = service.capacityOf(service.myName)
         val checked = values.indexOf(current).coerceAtLeast(0)
         androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("Your capacity")
+            .setTitle(getString(R.string.capacity_title))
             .setSingleChoiceItems(labels, checked) { dialog, which ->
                 service.setMyStatus(values[which])
                 dialog.dismiss()
@@ -608,7 +653,7 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
                     Toast.makeText(this, getString(R.string.toast_vouch_confirm), Toast.LENGTH_LONG).show()
                 }
             }
-            .setNegativeButton("Close", null)
+            .setNegativeButton(R.string.action_close, null)
             .show()
     }
 
@@ -623,14 +668,18 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
             return
         }
         val labels = candidates.map {
-            val cap = if (service.capacityOf(it) == MeshService.CAP_HOMEBOUND) "Homebound" else "Limited"
-            "$it — $cap (${service.vouchCountFor(it)} vouches)"
+            val cap = if (service.capacityOf(it) == MeshService.CAP_HOMEBOUND) {
+                getString(R.string.capacity_label_homebound)
+            } else {
+                getString(R.string.capacity_label_limited)
+            }
+            "$it - $cap (${service.vouchCountFor(it)} vouches)"
         }.toTypedArray()
         androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle(getString(R.string.title_vouch_status))
             .setItems(labels) { _, which ->
                 service.vouchFor(candidates[which])
-                Toast.makeText(this, "Vouched for ${candidates[which]} ✓", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.toast_vouched_for, candidates[which]), Toast.LENGTH_SHORT).show()
             }
             .show()
     }
@@ -643,7 +692,7 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
             return
         }
         val labels = candidates.map { name ->
-            val verified = if (service.isPhotoVerified(name)) " ✓" else ""
+            val verified = if (service.isPhotoVerified(name)) " (verified)" else ""
             val count = service.photoVouchCountFor(name)
             "$name$verified ($count/2 vouches)"
         }.toTypedArray()
@@ -665,7 +714,7 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         val service = meshService ?: return
         val names = service.ratedNames()
         if (names.isEmpty()) {
-            Toast.makeText(this, "No reputation activity yet", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, R.string.toast_no_reputation, Toast.LENGTH_SHORT).show()
             return
         }
         val ranked = names
@@ -674,15 +723,60 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
                 .thenByDescending { it.second.received }
                 .thenBy { it.first })
         val board = ranked.joinToString("\n") { (name, r) ->
-            "${r.glyph} $name — helped ${r.given}, received ${r.received}  · ${r.label}"
+            "${r.glyph} $name - helped ${r.given}, received ${r.received}  - ${r.label}"
         }
         val nudges = names.mapNotNull { service.opportunityNudge(it) }
         val body = if (nudges.isEmpty()) board
-        else board + "\n\n— Opportunities —\n" + nudges.joinToString("\n") { "• $it" }
+        else board + "\n\n- Opportunities -\n" + nudges.joinToString("\n") { "- $it" }
         androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("🏅 ${getString(R.string.title_thanks_board)}")
+            .setTitle(getString(R.string.title_thanks_board))
             .setMessage(body)
-            .setPositiveButton("Close", null)
+            .setPositiveButton(R.string.action_close, null)
+            .show()
+    }
+
+    private fun onFeedSortSelected(mode: FeedSort) {
+        val service = meshService ?: return
+        if (service.feedSort() == mode) return
+        service.setFeedSort(mode)
+        updateFeedSortUi(mode)
+        refreshUi()
+    }
+
+    private fun updateFeedSortUi(mode: FeedSort) {
+        listOf(
+            feedSortRecentButton to FeedSort.RECENT,
+            feedSortNearbyButton to FeedSort.NEARBY,
+        ).forEach { (button, sort) ->
+            val selected = mode == sort
+            button.backgroundTintList = ColorStateList.valueOf(
+                getColor(if (selected) R.color.mesh_nav_selected else R.color.mesh_surface),
+            )
+            button.strokeColor = ColorStateList.valueOf(
+                getColor(if (selected) R.color.mesh_teal else R.color.mesh_stroke_subtle),
+            )
+            button.setTextColor(
+                getColor(if (selected) R.color.mesh_teal_light else R.color.mesh_on_surface),
+            )
+        }
+    }
+
+    private fun showFeedLocationActions(line: FeedLine) {
+        val lat = line.mapLat ?: return
+        val lon = line.mapLon ?: return
+        val label = line.sender.ifBlank { getString(R.string.feed_location_actions_title) }
+        val options = arrayOf(
+            getString(R.string.map_open_system),
+            getString(R.string.map_navigate_here),
+        )
+        androidx.appcompat.app.AlertDialog.Builder(this)
+            .setTitle(getString(R.string.map_pin_actions_title, label))
+            .setItems(options) { _, which ->
+                when (which) {
+                    0 -> MapsHelper.openInGoogleMaps(this, lat, lon, label)
+                    1 -> MapsHelper.navigateTo(this, lat, lon)
+                }
+            }
             .show()
     }
 
@@ -698,7 +792,7 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
             .setTitle(getString(R.string.title_send_thanks))
             .setItems(labels) { _, which ->
                 service.thank(peers[which])
-                Toast.makeText(this, "Thanked ${peers[which]} 🙏", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, getString(R.string.toast_thanked, peers[which]), Toast.LENGTH_SHORT).show()
             }
             .show()
     }
@@ -887,17 +981,29 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         container.addView(nameField)
 
         container.addView(label(getString(R.string.location_share_label)))
-        val shareLocationCheck = CheckBox(this).apply {
-            isChecked = service.isLocationSharing()
+        container.addView(TextView(this).apply {
             text = getString(R.string.location_share_profile_hint)
             textSize = 12f
+            setPadding(0, 0, 0, dp(4))
+        })
+
+        container.addView(label(getString(R.string.gateway_mode_label)))
+        val gatewayCheck = CheckBox(this).apply {
+            isChecked = service.isGatewayMode()
+            text = getString(R.string.gateway_mode_hint)
+            textSize = 12f
             setOnCheckedChangeListener { _, checked ->
-                if (service.isLocationSharing() != checked) {
-                    service.setLocationSharing(checked)
+                if (service.isGatewayMode() != checked) {
+                    service.setGatewayMode(checked)
+                    Toast.makeText(
+                        this@MainActivity,
+                        if (checked) R.string.gateway_mode_on_toast else R.string.gateway_mode_off_toast,
+                        Toast.LENGTH_SHORT,
+                    ).show()
                 }
             }
         }
-        container.addView(shareLocationCheck)
+        container.addView(gatewayCheck)
 
         container.addView(label(getString(R.string.profile_area_heading)))
         container.addView(TextView(this).apply {
@@ -952,7 +1058,7 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         }
         container.addView(bloodSpinner)
         container.addView(TextView(this).apply {
-            text = "Kept private on your phone — only shared when you send an emergency."
+            text = "Kept private on your phone - only shared when you send an emergency."
             textSize = 11f
             setPadding(0, dp(2), 0, 0)
         })
@@ -982,7 +1088,7 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         val scroll = ScrollView(this).apply { addView(container) }
 
         val builder = androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle(if (onboarding) "Welcome to MeshHood — set up your profile" else "Edit profile")
+            .setTitle(if (onboarding) "Welcome to MeshHood - set up your profile" else "Edit profile")
             .setView(scroll)
             .setPositiveButton("Save", null)
         if (onboarding) {
@@ -1058,10 +1164,21 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
     }
 
     private fun locationStatusLine(service: MeshService, name: String): String = when {
-        name == service.myName && service.isLocationSharing() ->
-            getString(R.string.map_sharing_hint)
-        service.peerLocationOf(name) != null ->
-            getString(R.string.profile_location_shared, "recent")
+        name == service.myName -> {
+            val n = service.mutualLocationPeers().size
+            if (n > 0) getString(R.string.map_sharing_hint, n)
+            else getString(R.string.map_hidden_hint)
+        }
+        service.isMutualLocationWith(name) ->
+            if (service.peerLocationOf(name) != null) {
+                getString(R.string.profile_location_shared, "recent")
+            } else {
+                getString(R.string.profile_location_mutual)
+            }
+        service.hasIncomingLocationOffer(name) ->
+            getString(R.string.profile_location_pending_in)
+        service.hasOutgoingLocationOffer(name) ->
+            getString(R.string.profile_location_pending_out)
         else -> getString(R.string.profile_location_hidden)
     }
 
@@ -1071,12 +1188,12 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         val r = service.reciprocityOf(name)
         val cap = service.capacityOf(name)
         val capLine = when {
-            service.isExempt(name) -> "💛 ${if (cap == MeshService.CAP_HOMEBOUND) "Homebound" else "Limited"} (vouched — exempt)"
-            service.isUnverifiedClaim(name) -> "🟡 ${if (cap == MeshService.CAP_HOMEBOUND) "Homebound" else "Limited"} (needs vouches)"
-            else -> "🟢 Full capacity"
+            service.isExempt(name) -> "${if (cap == MeshService.CAP_HOMEBOUND) "Homebound" else "Limited"} (vouched - exempt)"
+            service.isUnverifiedClaim(name) -> "${if (cap == MeshService.CAP_HOMEBOUND) "Homebound" else "Limited"} (needs vouches)"
+            else -> "Full capacity"
         }
         val sb = StringBuilder()
-        sb.append("${r.glyph} ${r.label} · helped ${r.given}, received ${r.received}\n")
+        sb.append("${r.glyph} ${r.label} - helped ${r.given}, received ${r.received}\n")
         sb.append("Capacity: $capLine\n\n")
         if (p != null && p.skills.isNotEmpty()) sb.append("Skills: ${p.skills.joinToString(", ")}\n")
         if (p != null && p.shares.isNotEmpty()) sb.append("Can share: ${p.shares.joinToString(", ")}\n")
@@ -1085,7 +1202,7 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
                 service.verifiedCertsIn(g.id, name).map { g.name to it }
             }
             val certLines = p.certs.map { cert ->
-                val badge = verified.find { it.second == cert }?.let { " ✓ ${it.first}" } ?: ""
+                val badge = verified.find { it.second == cert }?.let { " (${it.first})" } ?: ""
                 "$cert$badge"
             }
             sb.append("Certifications: ${certLines.joinToString(", ")}\n")
@@ -1101,7 +1218,7 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         val peerLoc = service.peerLocationOf(name)
         val ice = service.iceOf(name)
         if (ice != null && !ice.isBlank()) {
-            sb.append("\n\n🆘 Emergency Card\n")
+            sb.append("\n\nEmergency Card\n")
             sb.append(service.iceSummary(ice))
             if (ice.notes.isNotBlank()) sb.append("\nNotes: ${ice.notes}")
         }
@@ -1133,27 +1250,62 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
             .setView(scroll)
             .setPositiveButton("Close", null)
         if (name != service.myName) {
-            builder.setNeutralButton("🙏 Thank") { _, _ -> service.thank(name) }
-            if (peerLoc != null && peerLoc.hasCoords()) {
-                builder.setNegativeButton(getString(R.string.profile_open_maps)) { _, _ ->
-                    MapsHelper.openInGoogleMaps(this, peerLoc.lat, peerLoc.lon, name)
+            when {
+                service.hasIncomingLocationOffer(name) -> {
+                    builder.setNeutralButton(getString(R.string.loc_action_accept)) { _, _ ->
+                        service.acceptMutualLocation(name)
+                        Toast.makeText(this, getString(R.string.loc_accept_sent, name), Toast.LENGTH_SHORT).show()
+                    }
+                    builder.setNegativeButton(getString(R.string.loc_action_reject)) { _, _ ->
+                        service.rejectMutualLocation(name)
+                    }
                 }
-            } else if (service.hasPhotoFor(name)) {
-                builder.setNegativeButton(getString(R.string.profile_photo_vouch_action)) { _, _ ->
-                    service.vouchProfilePhoto(name)
-                    Toast.makeText(
-                        this,
-                        getString(R.string.profile_photo_vouch_done, name),
-                        Toast.LENGTH_SHORT,
-                    ).show()
+                else -> {
+                    when {
+                        service.isMutualLocationWith(name) && peerLoc != null && peerLoc.hasCoords() -> {
+                            builder.setNeutralButton(getString(R.string.loc_action_revoke)) { _, _ ->
+                                service.revokeMutualLocation(name)
+                                Toast.makeText(this, getString(R.string.loc_revoked, name), Toast.LENGTH_SHORT).show()
+                            }
+                            builder.setNegativeButton(getString(R.string.profile_open_maps)) { _, _ ->
+                                MapsHelper.openInGoogleMaps(this, peerLoc.lat, peerLoc.lon, name)
+                            }
+                        }
+                        service.isMutualLocationWith(name) -> {
+                            builder.setNeutralButton("Thank") { _, _ -> service.thank(name) }
+                            builder.setNegativeButton(getString(R.string.loc_action_revoke)) { _, _ ->
+                                service.revokeMutualLocation(name)
+                                Toast.makeText(this, getString(R.string.loc_revoked, name), Toast.LENGTH_SHORT).show()
+                            }
+                        }
+                        else -> {
+                            builder.setNeutralButton("Thank") { _, _ -> service.thank(name) }
+                            if (!service.hasOutgoingLocationOffer(name)) {
+                                builder.setNegativeButton(getString(R.string.loc_action_request)) { _, _ ->
+                                    service.requestMutualLocation(name)
+                                    Toast.makeText(
+                                        this,
+                                        getString(R.string.loc_request_sent, name),
+                                        Toast.LENGTH_SHORT,
+                                    ).show()
+                                }
+                            }
+                        }
+                    }
                 }
             }
-        } else if (service.isLocationSharing()) {
+        } else {
             service.myLocationSnapshot()?.let { snap ->
                 if (snap.hasCoords()) {
                     builder.setNeutralButton(getString(R.string.profile_open_maps)) { _, _ ->
                         MapsHelper.openInGoogleMaps(this, snap.lat, snap.lon, name)
                     }
+                }
+            }
+            if (service.hasMutualLocationPeers()) {
+                builder.setNegativeButton(getString(R.string.loc_action_revoke)) { _, _ ->
+                    service.revokeAllMutualLocation()
+                    Toast.makeText(this, R.string.location_share_off_toast, Toast.LENGTH_SHORT).show()
                 }
             }
         }
@@ -1168,8 +1320,8 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
             hint = "e.g. Oak St Block, Building 4, Westside Mutual Aid"
         }
         androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("➕ Create a group")
-            .setMessage("You become the founder and first admin. Admins can verify credentials, pin announcements, and coordinate — but never censor speech.")
+            .setTitle("Create a group")
+            .setMessage("You become the founder and first admin. Admins can verify credentials, pin announcements, and coordinate - but never censor speech.")
             .setView(input)
             .setPositiveButton("Create") { _, _ ->
                 val name = input.text.toString().trim()
@@ -1177,7 +1329,7 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
                     Toast.makeText(this, "Enter a group name", Toast.LENGTH_SHORT).show()
                 } else {
                     service.createGroup(name)
-                    Toast.makeText(this, "Created \"$name\" — you're the admin", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, "Created \"$name\" - you're the admin", Toast.LENGTH_SHORT).show()
                     refreshUi()
                 }
             }
@@ -1190,30 +1342,30 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         val mine = service.myGroups()
         val discover = service.allKnownGroups().filter { g -> g.id !in mine.map { it.id } }
         if (mine.isEmpty() && discover.isEmpty()) {
-            Toast.makeText(this, "No groups yet — create one from the menu", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, "No groups yet - create one from the menu", Toast.LENGTH_SHORT).show()
             return
         }
         val labels = mutableListOf<String>()
         val ids = mutableListOf<String?>()
         if (mine.isNotEmpty()) {
-            labels.add("— Your groups —")
+            labels.add("- Your groups -")
             ids.add(null)
             for (g in mine) {
                 val role = if (service.isGroupAdmin(g.id)) "admin" else "member"
-                labels.add("🏘️ ${g.name} ($role, ${g.members.size} members)")
+                labels.add("${g.name} ($role, ${g.members.size} members)")
                 ids.add(g.id)
             }
         }
         if (discover.isNotEmpty()) {
-            labels.add("— Join a group —")
+            labels.add("- Join a group -")
             ids.add(null)
             for (g in discover) {
-                labels.add("➕ ${g.name} (${g.members.size} members)")
+                labels.add("${g.name} (${g.members.size} members)")
                 ids.add(g.id)
             }
         }
         androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("🏘️ My groups")
+            .setTitle(getString(R.string.menu_my_groups))
             .setItems(labels.toTypedArray()) { _, which ->
                 val gid = ids[which] ?: return@setItems
                 if (mine.any { it.id == gid }) showGroupDetail(gid)
@@ -1244,17 +1396,17 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         sb.append("\n\n")
         val pins = service.pinsForGroup(gid)
         if (pins.isNotEmpty()) {
-            sb.append("📌 Pinned\n")
-            for (p in pins.take(5)) sb.append("• ${p.text} — ${p.admin}\n")
+            sb.append("Pinned\n")
+            for (p in pins.take(5)) sb.append("- ${p.text} - ${p.admin}\n")
             sb.append("\n")
         }
         val verified = service.verifiedSummaryForGroup(gid)
         if (verified.isNotEmpty()) {
-            sb.append("✓ Verified credentials\n")
-            verified.forEach { (subject, cert) -> sb.append("• $subject — $cert\n") }
+            sb.append("Verified credentials\n")
+            verified.forEach { (subject, cert) -> sb.append("- $subject - $cert\n") }
         }
         val builder = androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("🏘️ ${g.name}")
+            .setTitle(g.name)
             .setMessage(sb.toString().trim())
             .setPositiveButton("Close", null)
         if (service.isGroupAdmin(gid)) {
@@ -1267,12 +1419,12 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         val service = meshService ?: return
         val g = service.groupOf(gid) ?: return
         val options = arrayOf(
-            "📌 Pin announcement",
-            "✓ Verify a credential",
-            "👑 Promote to admin"
+            "Pin announcement",
+            "Verify a credential",
+            "Promote to admin"
         )
         androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("Admin — ${g.name}")
+            .setTitle("Admin - ${g.name}")
             .setItems(options) { _, which ->
                 when (which) {
                     0 -> onPinAnnouncement(gid)
@@ -1289,7 +1441,7 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
             hint = "e.g. Sandbag pickup Saturday 9am at the clubhouse"
         }
         androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("📌 Pin announcement")
+            .setTitle("Pin announcement")
             .setView(input)
             .setPositiveButton("Pin") { _, _ ->
                 val text = input.text.toString().trim()
@@ -1327,7 +1479,7 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
             .setTitle("Verify which credential?")
             .setItems(certs.toTypedArray()) { _, which ->
                 service.verifyCertInGroup(gid, subject, certs[which])
-                Toast.makeText(this, "Verified ✓", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, "Verified", Toast.LENGTH_SHORT).show()
             }
             .show()
     }
@@ -1349,7 +1501,7 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
             .show()
     }
 
-    private val bloodTypes = listOf("Unknown", "O−", "O+", "A−", "A+", "B−", "B+", "AB−", "AB+")
+    private val bloodTypes = listOf("Unknown", "O-", "O+", "A-", "A+", "B-", "B+", "AB-", "AB+")
 
     private fun onEmergencyCard() {
         val service = meshService ?: return
@@ -1370,7 +1522,7 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         }
 
         container.addView(TextView(this).apply {
-            text = "🆘 Shared only when YOU send an emergency. Stored on your phone otherwise."
+            text = "Shared only when YOU send an emergency. Stored on your phone otherwise."
             textSize = 12f
             setPadding(0, 0, 0, dp(8))
         })
@@ -1446,7 +1598,9 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         bar.alpha = if (filled) 1f else 0.35f
     }
 
-    private fun meshNetworkLabelFor(ts: TransportState): String = when {
+    private fun meshNetworkLabelFor(ts: TransportState, gatewayMode: Boolean): String = when {
+        gatewayMode && (ts.lan == ChannelState.ACTIVE || ts.lan == ChannelState.SEARCHING) ->
+            getString(R.string.mesh_network_gateway)
         ts.neighborCount > 0 -> getString(R.string.mesh_network_label)
         ts.cellular == ChannelState.ACTIVE || ts.cellular == ChannelState.SEARCHING ->
             getString(R.string.mesh_network_cell)
@@ -1469,6 +1623,20 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         return getColor(colorRes)
     }
 
+    /** Shows readiness before MeshService binds so the strip is never empty/clipped. */
+    private fun bindTransportStripPlaceholder() {
+        networkReadinessDot.visibility = View.VISIBLE
+        networkReadinessLabel.visibility = View.VISIBLE
+        networkReadinessLabel.setText(R.string.network_readiness_searching)
+        networkReadinessLabel.setTextColor(getColor(R.color.mesh_channel_search))
+        val dotDrawable = ContextCompat.getDrawable(this, R.drawable.network_readiness_dot)?.mutate()
+        if (dotDrawable != null) {
+            DrawableCompat.setTint(dotDrawable, getColor(R.color.mesh_channel_search))
+            networkReadinessDot.background = dotDrawable
+        }
+        networkReadinessHelp.visibility = View.GONE
+    }
+
     private fun refreshTransportStrip(service: MeshService) {
         val ts = service.transportState()
         val color = meshSignalColor(ts)
@@ -1476,8 +1644,15 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         signalBars.forEachIndexed { index, bar ->
             tintSignalBar(bar, index < lit, color)
         }
-        meshNetworkLabel.text = meshNetworkLabelFor(ts)
+        meshNetworkLabel.text = meshNetworkLabelFor(ts, service.isGatewayMode())
         meshNetworkLabel.setTextColor(color)
+        NetworkStatusIndicator.update(
+            this,
+            networkReadinessDot,
+            networkReadinessLabel,
+            networkReadinessHelp,
+            service,
+        )
         if (ts.neighborCount > 0) {
             neighborCountText.visibility = View.VISIBLE
             neighborCountText.text = ts.neighborCount.toString()
@@ -1487,7 +1662,7 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         }
         transportStrip.contentDescription = getString(
             R.string.mesh_status_detail,
-            meshNetworkLabel.text,
+            "${networkReadinessLabel.text} · ${meshNetworkLabel.text}",
             lit,
             signalBars.size,
         )
@@ -1495,26 +1670,26 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
 
     private fun onEmergencyClicked() {
         meshService?.sendEmergency()
-        Toast.makeText(this, "Emergency broadcast sent", Toast.LENGTH_SHORT).show()
+        Toast.makeText(this, R.string.toast_emergency_sent, Toast.LENGTH_SHORT).show()
     }
 
     private fun onCoordinatorClicked() {
         val service = meshService ?: return
         val engine = if (service.llmActive()) "on-device AI (Gemma)" else "fast matcher"
         androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("🧭 Coordinator · $engine")
+            .setTitle(getString(R.string.coordinator_dialog_title, engine))
             .setMessage(service.coordinatorSummary())
-            .setPositiveButton("Close", null)
+            .setPositiveButton(R.string.action_close, null)
             .show()
     }
 
     private fun onClearFeedRequested() {
         val service = meshService ?: return
         androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("Clear feed?")
-            .setMessage("This removes the saved messages on this phone. Peers are kept.")
-            .setPositiveButton("Clear") { _, _ -> service.clearFeed() }
-            .setNegativeButton("Cancel", null)
+            .setTitle(R.string.clear_feed_title)
+            .setMessage(R.string.clear_feed_message)
+            .setPositiveButton(R.string.action_clear) { _, _ -> service.clearFeed() }
+            .setNegativeButton(R.string.action_cancel, null)
             .show()
     }
 
@@ -1580,10 +1755,15 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         val inDm = service.isDmScope(scope)
         feedBackButton.visibility = if (inDm) View.VISIBLE else View.GONE
         dmPeerAvatarButton.visibility = if (inDm) View.VISIBLE else View.GONE
-        areaPickerButton.visibility = if (inDm) View.GONE else View.VISIBLE
+        areaPickerRow.visibility = if (inDm) View.GONE else View.VISIBLE
         feedTitleText.visibility = if (inDm) View.VISIBLE else View.GONE
         if (!inDm) {
-            areaPickerButton.text = getString(R.string.area_picker_button_label, service.feedScopeLabel(scope))
+            val scopeLabel = service.feedScopeLabel(scope)
+            areaPickerLabel.text = scopeLabel
+            areaPickerRow.contentDescription =
+                getString(R.string.area_picker_title) + ": " + scopeLabel
+            areaPickerRow.isClickable = true
+            areaPickerRow.isEnabled = true
         }
         val dmCount = service.dmConversations().size
         chatsIconButton.visibility = if (inDm) View.GONE else View.VISIBLE
@@ -1613,6 +1793,10 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         } else {
             dmPeerAvatarClickName = null
         }
+        feedSortRow.visibility = if (inDm) View.GONE else View.VISIBLE
+        if (!inDm) {
+            updateFeedSortUi(service.feedSort())
+        }
         val lines = service.feedLines(scope)
         val emptyFallback = when {
             scope == MeshService.SCOPE_EVERYONE || MeshZone.isZoneScope(scope) ->
@@ -1622,30 +1806,50 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
             else ->
                 getString(R.string.feed_empty_group)
         }
-        messageText.text = if (lines.isEmpty()) {
-            emptyFallback
-        } else {
-            FeedStyler.spannable(this, lines, emptyFallback)
-        }
+        feedEmptyText.text = emptyFallback
         if (lines.isEmpty()) {
-            messageText.gravity = Gravity.CENTER
+            feedList.visibility = View.GONE
+            feedEmptyText.visibility = View.VISIBLE
             feedPostCountText.visibility = View.GONE
         } else {
-            messageText.gravity = Gravity.TOP or Gravity.START
+            feedAdapter.submitList(lines)
+            feedList.visibility = View.VISIBLE
+            feedEmptyText.visibility = View.GONE
             feedPostCountText.text = getString(R.string.feed_post_count, lines.size)
             feedPostCountText.visibility = View.VISIBLE
+            if (inDm) scrollFeedToBottom() else scrollFeedToTop()
         }
-        logScroll.post { logScroll.fullScroll(ScrollView.FOCUS_DOWN) }
+    }
+
+    private fun scrollFeedToBottom() {
+        feedList.post {
+            val count = feedAdapter.itemCount
+            if (count > 0) {
+                feedList.scrollToPosition(count - 1)
+            }
+        }
+    }
+
+    private fun scrollFeedToTop() {
+        feedList.post {
+            if (feedAdapter.itemCount > 0) {
+                feedList.scrollToPosition(0)
+            }
+        }
     }
 
     override fun onStart() {
         super.onStart()
         meshService?.setCallback(this)
         meshService?.refreshLiveGeoAsync()
+        if (criticalPermissionsGranted() && !bound) {
+            startAndBindService()
+        }
         if (bound) refreshUi()
     }
 
     override fun onDestroy() {
+        NetworkStatusIndicator.release(networkReadinessDot)
         super.onDestroy()
         meshService?.setCallback(null)
         if (bound) {
@@ -1654,3 +1858,4 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         }
     }
 }
+

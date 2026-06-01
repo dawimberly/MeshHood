@@ -12,14 +12,34 @@ data class TransportState(
     val meshBars: Int,
 )
 
-enum class FeedKind { NEIGHBOR, SELF, SYSTEM, ICE, EMERGENCY }
+enum class FeedKind { NEIGHBOR, SELF, SYSTEM, ICE, EMERGENCY, AGENCY }
+
+enum class FeedSort { RECENT, NEARBY }
+
+data class FeedDisplayParts(
+    val time: String,
+    val sender: String,
+    val text: String,
+)
 
 data class FeedLine(
     val time: String,
     val sender: String,
     val text: String,
     val kind: FeedKind,
+    val mapLat: Double? = null,
+    val mapLon: Double? = null,
 ) {
+    fun hasMapCoords(): Boolean = mapLat != null && mapLon != null
+    fun displayParts(): FeedDisplayParts {
+        val cleanTime = time.trim().removePrefix("[").removeSuffix("]")
+        return FeedDisplayParts(
+            time = cleanTime,
+            sender = sender.trim(),
+            text = text.trim(),
+        )
+    }
+
     fun displayLine(): String = if (time.isBlank()) {
         "$sender: $text"
     } else {
@@ -32,7 +52,8 @@ data class FeedLine(
             "Vouch", "EMERGENCY", "📌 Pin", "✓ Verified",
         )
 
-        fun classify(sender: String, text: String, emergency: Boolean): FeedKind = when {
+        fun classify(sender: String, text: String, emergency: Boolean, agency: Boolean = false): FeedKind = when {
+            agency -> FeedKind.AGENCY
             emergency -> FeedKind.EMERGENCY
             sender.contains("medical", ignoreCase = true) ||
                 text.contains("Blood ", ignoreCase = true) ||

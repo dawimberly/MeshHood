@@ -74,11 +74,12 @@ Reference screenshots: MeshHood prototype (dark feed) + Nextdoor (community stru
 
 | Kind | Treatment |
 |------|-----------|
-| **Neighbor message** | Normal text, primary color |
-| **Your message** | Teal accent |
-| **System** (Group, Status, Photo, Profile, Admin…) | Dimmed, smaller feel |
-| **ICE / medical** | Amber-tinted background block |
-| **Emergency** | Red accent, bold |
+| **Neighbor message** | `mesh_card` compact card, bold sender |
+| **Your message** | Subtle teal-tinted card |
+| **System** (Group, Status, Photo, Profile, Admin…) | Dimmed, no card fill |
+| **ICE / medical** | Amber-tinted card (`mesh_ice_card`) |
+| **Agency / official** | Blue container + **Official** badge |
+| **Emergency** | Red card + **Emergency** badge, bold body |
 
 ---
 

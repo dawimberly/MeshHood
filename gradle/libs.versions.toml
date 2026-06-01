@@ -1,6 +1,8 @@
 [versions]
 agp = "8.8.1"
 kotlin = "1.9.24"
+protobuf = "0.9.4"
+protobufJavalite = "3.25.1"
 coreKtx = "1.10.1"
 junit = "4.13.2"
 junitVersion = "1.1.5"
@@ -21,4 +23,5 @@ androidx-games-activity = { group = "androidx.games", name = "games-activity", v
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-android = { id = "org.jetbrains.kotlin.android", version.ref = "kotlin" }
+protobuf = { id = "com.google.protobuf", version.ref = "protobuf" }
 

@@ -40,6 +40,11 @@ object PeerLocationStore {
         val now = System.currentTimeMillis()
         peers.entries.removeIf { now - it.value.receivedAt > TTL_MS }
     }
+
+    /** Drop cached pins for peers that fail [keep] (e.g. non-mutual after travel). */
+    fun purgeExcept(keep: (String) -> Boolean) {
+        peers.keys.filter { !keep(it) }.forEach { remove(it) }
+    }
 }
 
 fun GeoLocator.Snapshot.hasCoords(): Boolean =

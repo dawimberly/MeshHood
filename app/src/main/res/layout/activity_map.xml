@@ -104,14 +104,32 @@
         android:orientation="vertical"
         android:padding="@dimen/spacing_md">
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/openSystemMapsButton"
-            style="@style/Widget.MeshHood.Chip"
+        <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/map_open_system"
-            app:icon="@drawable/ic_nav_map"
-            app:iconGravity="textStart" />
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/searchNearbyButton"
+                style="@style/Widget.MeshHood.Chip"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="@dimen/spacing_xs"
+                android:layout_weight="1"
+                android:text="@string/map_search_nearby"
+                app:icon="@drawable/ic_nav_resources"
+                app:iconGravity="textStart" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/openSystemMapsButton"
+                style="@style/Widget.MeshHood.Chip"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/map_open_system"
+                app:icon="@drawable/ic_nav_map"
+                app:iconGravity="textStart" />
+        </LinearLayout>
 
         <TextView
             android:layout_width="match_parent"

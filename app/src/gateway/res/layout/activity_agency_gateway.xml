@@ -1,0 +1,215 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/mesh_bg"
+    android:fillViewport="true">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="vertical"
+        android:padding="20dp">
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="@string/agency_gateway_title"
+            android:textColor="@color/mesh_on_surface"
+            android:textSize="22sp"
+            android:textStyle="bold" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="@string/agency_gateway_subtitle"
+            android:textColor="@color/mesh_on_surface_variant"
+            android:textSize="13sp" />
+
+        <TextView
+            android:id="@+id/gatewaySetupHint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/gateway_setup_getting_started"
+            android:textColor="@color/mesh_teal"
+            android:textSize="12sp" />
+
+        <TextView
+            android:id="@+id/gatewayKeyHint"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:textColor="@color/mesh_channel_error"
+            android:textSize="12sp"
+            android:visibility="gone" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:text="@string/agency_gateway_mesh_status"
+            android:textColor="@color/mesh_on_surface_variant"
+            android:textSize="11sp"
+            android:textAllCaps="true"
+            android:letterSpacing="0.08" />
+
+        <TextView
+            android:id="@+id/gatewayMeshStatus"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="@string/agency_gateway_mesh_starting"
+            android:textColor="@color/mesh_on_surface"
+            android:textSize="13sp" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/grantPermissionsButton"
+            style="@style/Widget.Material3.Button.OutlinedButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/agency_gateway_grant_permissions"
+            android:textColor="@color/mesh_primary"
+            android:visibility="gone"
+            app:strokeColor="@color/mesh_primary" />
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/gatewayModeSwitch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="12dp"
+            android:text="@string/gateway_mode_label"
+            android:textColor="@color/mesh_on_surface" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="@string/gateway_mode_hint"
+            android:textColor="@color/mesh_on_surface_variant"
+            android:textSize="12sp" />
+
+        <com.google.android.material.switchmaterial.SwitchMaterial
+            android:id="@+id/gatewayHeadlessSwitch"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/gateway_headless_label"
+            android:textColor="@color/mesh_on_surface" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="@string/gateway_headless_hint"
+            android:textColor="@color/mesh_on_surface_variant"
+            android:textSize="12sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="@string/cellular_relay_section"
+            android:textColor="@color/mesh_on_surface_variant"
+            android:textSize="11sp"
+            android:textAllCaps="true"
+            android:letterSpacing="0.08" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:hint="@string/cellular_relay_url_hint"
+            app:boxBackgroundColor="@color/mesh_surface"
+            app:hintTextColor="@color/mesh_on_surface_variant">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/cellularRelayUrl"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textUri"
+                android:textColor="@color/mesh_on_surface" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:hint="@string/cellular_relay_token_hint"
+            app:boxBackgroundColor="@color/mesh_surface"
+            app:hintTextColor="@color/mesh_on_surface_variant">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/cellularRelayToken"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:inputType="textPassword"
+                android:textColor="@color/mesh_on_surface" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:text="@string/cellular_relay_hint"
+            android:textColor="@color/mesh_on_surface_variant"
+            android:textSize="12sp" />
+
+        <TextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="@string/agency_gateway_agency_label"
+            android:textColor="@color/mesh_on_surface_variant"
+            android:textSize="11sp"
+            android:textAllCaps="true"
+            android:letterSpacing="0.08" />
+
+        <Spinner
+            android:id="@+id/agencySpinner"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="4dp"
+            android:backgroundTint="@color/mesh_on_surface" />
+
+        <com.google.android.material.textfield.TextInputLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="16dp"
+            android:hint="@string/agency_gateway_message_hint"
+            app:boxBackgroundColor="@color/mesh_surface"
+            app:hintTextColor="@color/mesh_on_surface_variant">
+
+            <com.google.android.material.textfield.TextInputEditText
+                android:id="@+id/alertText"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:gravity="top"
+                android:inputType="textMultiLine|textCapSentences"
+                android:minLines="4"
+                android:textColor="@color/mesh_on_surface" />
+        </com.google.android.material.textfield.TextInputLayout>
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/sendAlertButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="20dp"
+            android:text="@string/agency_gateway_send"
+            app:backgroundTint="@color/mesh_primary" />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/openFullAppButton"
+            style="@style/Widget.Material3.Button.TextButton"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="8dp"
+            android:text="@string/agency_gateway_open_app"
+            android:textColor="@color/mesh_on_surface_variant" />
+    </LinearLayout>
+</ScrollView>
+
+

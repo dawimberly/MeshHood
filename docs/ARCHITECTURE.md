@@ -41,7 +41,8 @@ MeshHood is a single Android app with a foreground service that runs three paral
 | `profile` | Signed skills/shares/certs |
 | `photothumb` | Signed profile photo thumbnail (SHA-256 hash) |
 | `photovouch` | Signed neighbor attestation for a profile photo |
-| `locshare` / `lochide` | Opt-in live location pin / hide from map |
+| `locoffer` / `locaccept` / `locreject` | Pairwise mutual location consent |
+| `locshare` / `lochide` | Signed live pin / hide (stored only if mutual) |
 | `status` / `vouch` | Capacity claims and neighbor attestation |
 | `groupcreate` / `groupjoin` / `groupmsg` / … | Community overlay |
 | `crew` / `crewjoin` | Help-call coordination |
@@ -53,12 +54,14 @@ Geography and messaging are **separate layers**:
 | Layer | Role |
 |-------|------|
 | **Geo** (`MeshZone`, `GeoLocator`, `ZoneContext`) | Profile anchor (state, nation) + rolling GPS ZIP; drives default feed and local sort order |
-| **Comms** (`MessageChannel`, envelope `channel`) | Viewer hint on each message — mesh relays do not filter by ZIP |
+| **Comms** (`MessageChannel`, envelope `channel`, `origin`, `routeClass`) | Geographic audience + relay policy; emergencies use `emergency-national` |
 | **UI** | **Area ▼** = public scopes; **Chats** = `dm:*` only |
 
 Broadcast envelopes include:
 
-- `channel` — e.g. `zone:postal:87110`, `everyone`, or a group id (legacy field: `zoneScope`)
+- `channel` — e.g. `zone:postal:87110`, `everyone` (emergency-national only), or a group id
+- `routeClass` — `local` (stay in sender's geo branch) or `emergency-national` (unrestricted flood)
+- `origin` — sender's geographic hierarchy `{ nation, state, postal, … }` for relay gates
 - `geo` — optional `{ lat, lon, postal, ts }` sender snapshot at send time
 
 ## Groups overlay

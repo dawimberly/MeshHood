@@ -4,6 +4,7 @@ import java.util.Properties
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
+    alias(libs.plugins.protobuf)
 }
 
 val localProperties = Properties()
@@ -12,6 +13,7 @@ if (localPropertiesFile.exists()) {
     localProperties.load(FileInputStream(localPropertiesFile))
 }
 val mapsApiKey: String = localProperties.getProperty("MAPS_API_KEY", "")
+val agencySigningKey: String = localProperties.getProperty("AGENCY_SIGNING_KEY", "")
 
 android {
     namespace = "com.meshhood"
@@ -33,6 +35,22 @@ android {
         buildConfig = true
     }
 
+    flavorDimensions += "edition"
+    productFlavors {
+        create("consumer") {
+            dimension = "edition"
+            buildConfigField("Boolean", "AGENCY_GATEWAY", "false")
+            buildConfigField("String", "AGENCY_SIGNING_KEY", "\"\"")
+        }
+        create("gateway") {
+            dimension = "edition"
+            applicationIdSuffix = ".gateway"
+            versionNameSuffix = "-gateway"
+            buildConfigField("Boolean", "AGENCY_GATEWAY", "true")
+            buildConfigField("String", "AGENCY_SIGNING_KEY", "\"$agencySigningKey\"")
+        }
+    }
+
     buildTypes {
         release {
             isMinifyEnabled = false
@@ -51,6 +69,21 @@ android {
     }
 }
 
+protobuf {
+    protoc {
+        artifact = "com.google.protobuf:protoc:3.25.1"
+    }
+    generateProtoTasks {
+        all().forEach { task ->
+            task.builtins {
+                create("java") {
+                    option("lite")
+                }
+            }
+        }
+    }
+}
+
 dependencies {
 
     implementation(libs.androidx.core.ktx)
@@ -64,8 +97,10 @@ dependencies {
     // portable low-level primitives instead.
     implementation("org.bouncycastle:bcprov-jdk18on:1.78.1")
     testImplementation(libs.junit)
+    testImplementation("org.robolectric:robolectric:4.14.1")
     androidTestImplementation(libs.androidx.junit)
     androidTestImplementation(libs.androidx.espresso.core)
     implementation("androidx.recyclerview:recyclerview:1.3.2")
     implementation("com.google.android.gms:play-services-maps:19.0.0")
+    implementation("com.google.protobuf:protobuf-javalite:3.25.1")
 }

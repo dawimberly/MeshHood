@@ -58,7 +58,8 @@ class MeshService : Service() {
         val sender: String,
         val text: String,
         val scope: String = SCOPE_EVERYONE,
-        val emergency: Boolean = false
+        val emergency: Boolean = false,
+        val agency: Boolean = false,
     ) {
         fun displayLine(): String = "[$time] $sender: $text"
     }
@@ -77,6 +78,8 @@ class MeshService : Service() {
     private var wifiDirect: WifiDirectTransport? = null
     private var lan: LanTransport? = null
     private var cellular: CellularTransport? = null
+    private var cellularUplink: CellularUplink? = null
+    @Volatile private var cellularUplinkActive = false
 
     private val knownPeers = linkedSetOf<String>()
 
@@ -187,7 +190,7 @@ class MeshService : Service() {
         const val TRIAGE_NOTIFICATION_ID = 2
 
         const val EVERYONE = "Everyone"
-        const val SCOPE_EVERYONE = "everyone"
+        const val SCOPE_EVERYONE = MessageChannel.EVERYONE
         const val DM_SCOPE_PREFIX = "dm:"
         // Fallback identity label before the user completes onboarding.
         const val DEFAULT_NAME = "Contact"
@@ -212,11 +215,21 @@ class MeshService : Service() {
         private const val KEY_GROUP_VERIFIED = "groupverified"
         private const val KEY_GROUP_PINS = "grouppins"
         private const val KEY_FEED_SCOPE = "feedscope"
+        private const val KEY_FEED_SORT = "feedsort"
         private const val KEY_MY_ZONE = "myzone"
         private const val KEY_PHOTO_VOUCH = "photovouches"
         private const val KEY_PEER_PHOTO_HASH = "peerphotohash"
-        private const val KEY_LOCATION_SHARE = "locationshare"
+        private const val KEY_LOCATION_SHARE = "locationshare" // legacy; cleared on load
+        private const val KEY_GATEWAY_MODE = "gatewaymode"
+        private const val KEY_DEVICE_ID = "deviceid"
         private const val MAX_LOG_ENTRIES = 300
+        private const val SYNC_COOLDOWN_MS = 8_000L
+        private const val TRANSPORT_LAN = "lan"
+        private const val TRANSPORT_WIFI_DIRECT = "wifi-direct"
+        private const val TRANSPORT_BLE = "ble"
+        private const val TRANSPORT_CELLULAR = "cellular"
+        const val KEY_CELLULAR_RELAY_URL = "cellular_relay_url"
+        const val KEY_CELLULAR_RELAY_TOKEN = "cellular_relay_token"
         private const val MAX_GROUP_PINS = 10
 
         // Capacity statuses (FULL is the implicit default).
@@ -233,6 +246,7 @@ class MeshService : Service() {
         // Multi-hop relay: how many phones a message may pass through, and how
         // many recent message IDs we remember to avoid relaying the same one twice.
         private const val TTL_DEFAULT = 6
+        private const val TTL_AGENCY = 10
         private const val MAX_SEEN_IDS = 1000
     }
 
@@ -249,17 +263,36 @@ class MeshService : Service() {
         getSharedPreferences(PREFS_NAME, MODE_PRIVATE)
     }
 
+    private val messageStore: MeshMessageStore by lazy { MeshMessageStore(prefs) }
+
+    private val lastSyncByTransport = HashMap<String, Long>()
+    private val protoCapableByTransport = java.util.concurrent.ConcurrentHashMap<String, java.util.concurrent.atomic.AtomicBoolean>()
+
+    private fun protoCapable(transport: String): Boolean =
+        protoCapableByTransport[transport]?.get() == true
+
+    private fun noteProtoCapability(transport: String, envelopeJson: String, wire: ByteArray) {
+        if (MeshSerializer.isProtobuf(wire) || MeshSerializer.signalsProtoCapability(envelopeJson)) {
+            protoCapableByTransport
+                .computeIfAbsent(transport) { java.util.concurrent.atomic.AtomicBoolean(false) }
+                .set(true)
+        }
+    }
+
     override fun onBind(intent: Intent?): IBinder = binder
 
     override fun onCreate() {
         super.onCreate()
         createNotificationChannel()
         loadState()
+        ensureHeadlessGatewayMode()
+        AgencyTrust.load(this)
         startForeground(NOTIFICATION_ID, buildNotification("Starting mesh..."))
         startBle()
         startWifiDirect()
         startLan()
         startCellular()
+        startCellularUplink()
         composeStatus()
         // Load the optional on-device LLM in the background; falls back silently.
         llmExecutor.execute {
@@ -276,24 +309,95 @@ class MeshService : Service() {
             if (!hasProfile()) return@execute
             broadcastProfile()
             if (hasProfilePhoto()) broadcastPhotoThumb()
-            if (isLocationSharing()) broadcastLocShare()
+            if (hasMutualLocationPeers()) broadcastLocShare()
         }
     }
 
-    /** Rolling ZIP from GPS — merged with saved anchor in [effectiveZone]. */
-    fun effectiveZone(): MeshZone = ZoneContext.effective(myZone, geoLocator.currentPostal())
+    /** Rolling GPS merged with saved profile anchor. */
+    fun effectiveZone(): MeshZone = ZoneContext.effective(myZone, geoLocator.current())
 
     fun livePostal(): String = geoLocator.currentPostal()
 
     fun refreshLiveGeoAsync() {
         llmExecutor.execute {
-            val priorPostal = geoLocator.currentPostal()
+            val prior = effectiveZone()
             geoLocator.refresh()
-            if (geoLocator.currentPostal().isNotEmpty() && geoLocator.currentPostal() != priorPostal) {
-                promoteFeedToFinestIfNeeded()
-            }
-            if (isLocationSharing()) broadcastLocShare()
+            applyLiveGeo(prior)
+            if (hasMutualLocationPeers()) broadcastLocShare()
             callback?.onUpdate()
+        }
+    }
+
+    /** Snap feed + saved anchor to current GPS when state/ZIP/city changes. */
+    private fun applyLiveGeo(priorEffective: MeshZone) {
+        val snap = geoLocator.current() ?: return
+        val now = effectiveZone()
+
+        val scrubbed = scrubStoredAnchor(snap)
+        if (scrubbed != myZone) {
+            myZone = scrubbed
+            prefs.edit().putString(KEY_MY_ZONE, myZone.toJson().toString()).apply()
+        }
+
+        val geoMoved = priorEffective.state != now.state ||
+            priorEffective.postal != now.postal ||
+            priorEffective.local != now.local
+        if (geoMoved) {
+            onTravelLocationContextChanged()
+        }
+        realignFeedScopeToLive(now, force = geoMoved)
+    }
+
+    /** After significant move: drop stale pending offers and non-mutual map cache. */
+    private fun onTravelLocationContextChanged() {
+        var snap = MutualLocation.load(prefs)
+        snap = MutualLocation.clearAllPending(snap)
+        MutualLocation.save(prefs, snap)
+        val mutual = snap.mutual
+        PeerLocationStore.purgeExcept { it in mutual }
+        callback?.onUpdate()
+    }
+
+    /** Drop manual place labels from saved profile — GPS drives location now. */
+    private fun scrubStoredAnchor(snap: GeoLocator.Snapshot): MeshZone {
+        var zone = myZone
+        if (snap.state.isNotBlank()) {
+            zone = zone.copy(state = snap.state)
+        }
+        if (zone.nation.isBlank()) {
+            zone = zone.copy(nation = "US")
+        }
+        val staleLocal = snap.locality.isNotBlank() &&
+            !zone.local.equals(snap.locality, ignoreCase = true)
+        if (zone.region.isNotBlank() || zone.nationalRegion.isNotBlank() || staleLocal) {
+            zone = zone.copy(
+                region = "",
+                nationalRegion = "",
+                local = if (staleLocal) "" else zone.local,
+            )
+        }
+        return zone
+    }
+
+    /** Feed scope tied to current place — stale views drop when you travel. */
+    private fun realignFeedScopeToLive(zone: MeshZone, force: Boolean = false) {
+        val finest = zone.finestLevel()?.let { zone.scopeId(it) } ?: SCOPE_EVERYONE
+        if (finest == SCOPE_EVERYONE) return
+        val stale = force || when {
+            feedScope == SCOPE_EVERYONE -> true
+            !MeshZone.isZoneScope(feedScope) -> false
+            else -> {
+                val level = MeshZone.levelFromScope(feedScope) ?: return
+                val liveVal = zone.value(level).trim()
+                liveVal.isEmpty() ||
+                    liveVal != MeshZone.valueFromScope(feedScope).trim()
+            }
+        }
+        if (stale) {
+            feedScope = finest
+            prefs.edit().putString(KEY_FEED_SCOPE, feedScope).apply()
+        } else {
+            promoteFeedToFinestIfNeeded()
         }
     }
 
@@ -311,43 +415,239 @@ class MeshService : Service() {
     private fun startWifiDirect() {
         wifiDirect = WifiDirectTransport(
             context = this,
-            onBytes = { bytes -> onTransportBytes(bytes) },
+            onBytes = { bytes -> onTransportBytes(bytes, TRANSPORT_WIFI_DIRECT) },
             onStatus = { s ->
                 wifiStatus = s
                 composeStatus()
-            }
+            },
+            onPeerConnected = { onTransportPeerConnected("wifi-direct") },
         ).also { it.start() }
     }
 
     private fun startLan() {
         lan = LanTransport(
             context = this,
-            onBytes = { bytes -> onTransportBytes(bytes) },
+            role = if (isGatewayMode()) LanTransport.ROLE_GATEWAY else LanTransport.ROLE_PEER,
+            onBytes = { bytes -> onTransportBytes(bytes, TRANSPORT_LAN) },
             onStatus = { s ->
                 lanStatus = s
                 composeStatus()
-            }
+            },
+            onPeerConnected = { onTransportPeerConnected("lan") },
         ).also { it.start() }
+    }
+
+    /** Stable id for State Sync handshakes (independent of display name). */
+    private fun stableDeviceId(): String {
+        prefs.getString(KEY_DEVICE_ID, null)?.takeIf { it.isNotEmpty() }?.let { return it }
+        val id = newId()
+        prefs.edit().putString(KEY_DEVICE_ID, id).apply()
+        return id
+    }
+
+    private fun onTransportPeerConnected(transport: String) {
+        llmExecutor.execute {
+            try {
+                runSyncHandshake(transport)
+            } catch (t: Throwable) {
+                android.util.Log.w(StateSync.TAG, "sync on $transport failed", t)
+            }
+        }
+    }
+
+    private fun runSyncHandshake(transport: String) {
+        val now = System.currentTimeMillis()
+        synchronized(lastSyncByTransport) {
+            val last = lastSyncByTransport[transport] ?: 0L
+            if (now - last < SYNC_COOLDOWN_MS) return
+            lastSyncByTransport[transport] = now
+        }
+        val req = StateSync.buildRequest(
+            deviceId = stableDeviceId(),
+            lastSeenSeq = messageStore.highestTimestamp(),
+            windowSize = MeshMessageStore.DEFAULT_WINDOW,
+        )
+        markSeen(JSONObject(req).optString("id", ""))
+        android.util.Log.i(StateSync.TAG, "syncreq via $transport watermark=${messageStore.highestTimestamp()}")
+        flood(req)
+    }
+
+    private fun handleSyncRequest(obj: JSONObject) {
+        val parsed = StateSync.parseRequest(obj) ?: return
+        val (_, watermarkTs, window) = parsed
+        val payloads = messageStore.envelopesAfter(watermarkTs, window)
+        if (payloads.isEmpty()) return
+        val resp = StateSync.buildResponse(stableDeviceId(), payloads)
+        markSeen(JSONObject(resp).optString("id", ""))
+        android.util.Log.i(StateSync.TAG, "syncresp ${payloads.size} message(s)")
+        flood(resp)
+    }
+
+    private fun handleSyncResponse(obj: JSONObject) {
+        val parsed = StateSync.parseResponse(obj) ?: return
+        var applied = 0
+        for (raw in parsed.second) {
+            try {
+                val inner = JSONObject(raw)
+                val id = inner.optString("id", "")
+                if (id.isNotEmpty() && messageStore.containsId(id)) continue
+                handleIncoming(raw)
+                applied++
+            } catch (_: Exception) {
+            }
+        }
+        if (applied > 0) {
+            android.util.Log.i(StateSync.TAG, "catch-up applied $applied message(s)")
+        }
+    }
+
+    private fun maybeStoreEnvelope(raw: String, type: String) {
+        if (StateSync.shouldStoreType(type)) {
+            messageStore.append(raw)
+        }
+    }
+
+    /** Gateway headless hubs keep gateway mode + BLE advertising enabled. */
+    private fun ensureHeadlessGatewayMode() {
+        if (!BuildConfig.AGENCY_GATEWAY) return
+        if (!prefs.getBoolean(GatewayHeadlessKeys.KEY_HEADLESS, false)) return
+        if (!isGatewayMode()) {
+            prefs.edit().putBoolean(KEY_GATEWAY_MODE, true).apply()
+        }
+    }
+
+    fun isGatewayMode(): Boolean = prefs.getBoolean(KEY_GATEWAY_MODE, false)
+
+    /** Raw LAN status for network readiness (e.g. "WiFi LAN: 2 linked"). */
+    fun lanStatusLine(): String = lanStatus
+
+    fun setGatewayMode(enabled: Boolean) {
+        if (isGatewayMode() == enabled) return
+        prefs.edit().putBoolean(KEY_GATEWAY_MODE, enabled).apply()
+        restartLan()
+        restartCellularUplink()
+        updateCellStatus()
+        callback?.onUpdate()
+    }
+
+    fun cellularRelayUrl(): String =
+        prefs.getString(KEY_CELLULAR_RELAY_URL, "").orEmpty().trim()
+
+    fun cellularRelayToken(): String =
+        prefs.getString(KEY_CELLULAR_RELAY_TOKEN, "").orEmpty().trim()
+
+    /** Gateway edition — configure relay endpoint (empty URL disables uplink). */
+    fun setCellularRelayConfig(url: String, token: String) {
+        if (!BuildConfig.AGENCY_GATEWAY) return
+        val normalized = url.trim().removeSuffix("/")
+        prefs.edit()
+            .putString(KEY_CELLULAR_RELAY_URL, normalized)
+            .putString(KEY_CELLULAR_RELAY_TOKEN, token.trim())
+            .apply()
+        restartCellularUplink()
+        updateCellStatus()
+        callback?.onUpdate()
+    }
+
+    /** Gateway edition only — sign, display, and flood a verified agency alert. */
+    fun publishAgencyAlert(envelopeJson: String): Boolean {
+        if (!BuildConfig.AGENCY_GATEWAY) return false
+        val obj = try {
+            JSONObject(envelopeJson)
+        } catch (_: Exception) {
+            return false
+        }
+        if (AgencyTrust.verify(obj) == null) return false
+        handleIncoming(envelopeJson)
+        return true
+    }
+
+    private fun restartLan() {
+        try {
+            lan?.stop()
+        } catch (_: Exception) {
+        }
+        lan = null
+        startLan()
+        composeStatus()
     }
 
     private fun startCellular() {
         cellular = CellularTransport(
             context = this,
-            onStatus = { s ->
-                cellStatus = s
-                composeStatus()
+            onLinkChanged = { updateCellStatus() },
+        ).also { it.start() }
+    }
+
+    private fun shouldRunCellularUplink(): Boolean =
+        BuildConfig.AGENCY_GATEWAY &&
+            isGatewayMode() &&
+            cellularRelayUrl().isNotBlank()
+
+    private fun startCellularUplink() {
+        stopCellularUplink()
+        if (!shouldRunCellularUplink()) return
+        cellularUplink = CellularUplink(
+            relayBaseUrl = { cellularRelayUrl() },
+            relayToken = { cellularRelayToken() },
+            deviceId = { stableDeviceId() },
+            isEnabled = { shouldRunCellularUplink() },
+            isDataReady = { cellular?.isDataReady() == true },
+            onBytes = { bytes -> onTransportBytes(bytes, TRANSPORT_CELLULAR) },
+            onActiveChanged = { active ->
+                cellularUplinkActive = active
+                updateCellStatus()
             },
         ).also { it.start() }
     }
 
-    /** Shared receive path for any transport: decrypt then handle. */
-    private fun onTransportBytes(bytes: ByteArray) {
-        val decrypted = Crypto.decrypt(bytes)
-        if (decrypted == null) {
-            appendLog(getString(R.string.default_contact_name), getString(R.string.log_wrong_key))
-        } else {
-            handleIncoming(decrypted)
+    private fun restartCellularUplink() {
+        cellularUplinkActive = false
+        startCellularUplink()
+    }
+
+    private fun stopCellularUplink() {
+        try {
+            cellularUplink?.stop()
+        } catch (_: Exception) {
         }
+        cellularUplink = null
+        cellularUplinkActive = false
+    }
+
+    private fun updateCellStatus() {
+        cellStatus = composeCellStatusLine()
+        composeStatus()
+    }
+
+    private fun composeCellStatusLine(): String {
+        val cell = cellular ?: return ""
+        if (!BuildConfig.AGENCY_GATEWAY) return cell.linkStatusLine()
+        if (!isGatewayMode() || cellularRelayUrl().isBlank()) {
+            return getString(R.string.cell_status_off)
+        }
+        if (!cell.hasSim()) return getString(R.string.cell_status_no_sim)
+        if (!cell.isDataReady()) return getString(R.string.cell_status_offline)
+        if (cellularUplinkActive) return getString(R.string.cell_status_uplink_active)
+        return getString(R.string.cell_status_ready)
+    }
+
+    /** Shared receive path for any transport: decrypt, decode wire format, then handle. */
+    private fun onTransportBytes(bytes: ByteArray, transport: String = TRANSPORT_BLE) {
+        val wire = Crypto.decryptBytes(bytes)
+        if (wire == null) {
+            appendLog(getString(R.string.default_contact_name), getString(R.string.log_wrong_key))
+            return
+        }
+        val envelopeJson = try {
+            MeshSerializer.decode(wire)
+        } catch (t: Throwable) {
+            android.util.Log.w("MeshSerializer", "decode failed on $transport", t)
+            appendLog(getString(R.string.default_contact_name), getString(R.string.log_wrong_key))
+            return
+        }
+        noteProtoCapability(transport, envelopeJson, wire)
+        handleIncoming(envelopeJson)
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -400,39 +700,114 @@ class MeshService : Service() {
             }
         }
         val home = effectiveZone()
-        out.addAll(
-            logEntries.mapIndexed { index, e -> index to e }
-                .filter { (_, e) ->
-                    if (e.emergency) return@filter true
-                    if (e.sender == "You" && !isDmScope(e.scope) && groups[e.scope] == null &&
-                        (filterScope == SCOPE_EVERYONE || MeshZone.isZoneScope(filterScope))
-                    ) {
-                        return@filter true
-                    }
-                    when {
-                        isDmScope(filterScope) -> e.scope == filterScope
-                        isGroupMember(filterScope) -> e.scope == filterScope
-                        filterScope == SCOPE_EVERYONE || MeshZone.isZoneScope(filterScope) ->
-                            MeshZone.visibleInView(e.scope, filterScope)
-                        else -> e.scope == filterScope
-                    }
+        val userLoc = geoLocator.current()?.takeIf { it.hasCoords() }
+        val sortMode = if (isDmScope(filterScope)) FeedSort.RECENT else feedSort()
+        val useNearbySort = sortMode == FeedSort.NEARBY && userLoc != null && !isDmScope(filterScope)
+        val filtered = logEntries.mapIndexed { index, e -> index to e }
+            .filter { (_, e) ->
+                if (e.agency || e.emergency) return@filter true
+                if (e.sender == "You" && !isDmScope(e.scope) && groups[e.scope] == null &&
+                    (filterScope == SCOPE_EVERYONE || MeshZone.isZoneScope(filterScope))
+                ) {
+                    return@filter true
                 }
-                .sortedWith(
-                    compareBy<Pair<Int, LogEntry>> { (_, e) -> if (e.emergency) 0 else 1 }
-                        .thenBy { (_, e) -> MeshZone.proximityRank(e.scope, filterScope, home) }
-                        .thenBy { (index, _) -> index }
+                when {
+                    isDmScope(filterScope) -> e.scope == filterScope
+                    isGroupMember(filterScope) -> e.scope == filterScope
+                    filterScope == SCOPE_EVERYONE || MeshZone.isZoneScope(filterScope) ->
+                        ZoneRouter.visibleInView(
+                            e.scope,
+                            filterScope,
+                            home,
+                            e.emergency,
+                            routeClassForEntry(e),
+                        )
+                    else -> e.scope == filterScope
+                }
+            }
+        val sorted = when {
+            useNearbySort ->
+                filtered.sortedWith(
+                    compareBy<Pair<Int, LogEntry>> { (_, e) ->
+                        when {
+                            e.agency -> 0
+                            e.emergency -> 1
+                            else -> 2
+                        }
+                    }
+                        .thenBy { (_, e) -> entryDistanceMeters(e, filterScope, home, userLoc!!) }
+                        .thenByDescending { (index, _) -> index }
                 )
-                .map { (_, e) ->
-                    FeedLine(
-                        time = e.time,
-                        sender = e.sender,
-                        text = e.text,
-                        kind = FeedLine.classify(e.sender, e.text, e.emergency),
-                    )
-                }
+            isDmScope(filterScope) ->
+                filtered.sortedBy { (index, _) -> index }
+            else ->
+                filtered.sortedWith(
+                    compareBy<Pair<Int, LogEntry>> { (_, e) ->
+                        when {
+                            e.agency -> 0
+                            e.emergency -> 1
+                            else -> 2
+                        }
+                    }
+                        .thenByDescending { (index, _) -> index }
+                )
+        }
+        out.addAll(
+            sorted.map { (_, e) ->
+                val coords = MapsHelper.parseCoordsFromText(e.text)
+                FeedLine(
+                    time = e.time,
+                    sender = e.sender,
+                    text = e.text,
+                    kind = FeedLine.classify(e.sender, e.text, e.emergency, e.agency),
+                    mapLat = coords?.first,
+                    mapLon = coords?.second,
+                )
+            }
         )
         return out
     }
+
+    fun feedSort(): FeedSort {
+        val raw = prefs.getString(KEY_FEED_SORT, FeedSort.RECENT.name) ?: FeedSort.RECENT.name
+        return runCatching { FeedSort.valueOf(raw) }.getOrDefault(FeedSort.RECENT)
+    }
+
+    fun setFeedSort(mode: FeedSort) {
+        prefs.edit().putString(KEY_FEED_SORT, mode.name).apply()
+        callback?.onUpdate()
+    }
+
+    private fun entryDistanceMeters(
+        entry: LogEntry,
+        filterScope: String,
+        home: MeshZone,
+        userLoc: GeoLocator.Snapshot,
+    ): Double {
+        MapsHelper.parseCoordsFromText(entry.text)?.let { (lat, lon) ->
+            return MapsHelper.distanceMeters(userLoc.lat, userLoc.lon, lat, lon)
+        }
+        senderPeerName(entry.sender)?.let { name ->
+            peerLocationOf(name)?.takeIf { it.hasCoords() }?.let { snap ->
+                return MapsHelper.distanceMeters(userLoc.lat, userLoc.lon, snap.lat, snap.lon)
+            }
+        }
+        return MeshZone.proximityRank(entry.scope, filterScope, home) * 1_000.0
+    }
+
+    private fun senderPeerName(sender: String): String? = when {
+        sender.startsWith("DM from ") ->
+            sender.removePrefix("DM from ").substringBefore(" \uD83D\uDD10").trim()
+        sender == "You" || sender.startsWith("You ") -> myName
+        sender.contains(":") -> null
+        sender in FEED_SYSTEM_SENDERS -> null
+        else -> sender.substringBefore(" \u00b7 ").trim().takeIf { it.isNotEmpty() }
+    }
+
+    private val FEED_SYSTEM_SENDERS = setOf(
+        "Group", "Status", "Photo", "Profile", "Reputation", "Admin",
+        "Vouch", "EMERGENCY", "Location", "Cell", "\uD83D\uDCCC Pin", "\u2713 Verified",
+    )
 
     /** Live transport channels for the status strip UI. */
     fun transportState(): TransportState {
@@ -475,7 +850,8 @@ class MeshService : Service() {
         if (raw.isBlank()) return ChannelState.OFF
         val lower = raw.lowercase()
         return when {
-            lower.contains("ready") -> ChannelState.ACTIVE
+            lower.contains("uplink active") || lower.contains("ready") -> ChannelState.ACTIVE
+            lower.contains(": off") -> ChannelState.OFF
             lower.contains("no sim") -> ChannelState.OFF
             else -> ChannelState.SEARCHING
         }
@@ -512,35 +888,104 @@ class MeshService : Service() {
 
     /** Scope tag for outgoing public broadcasts (finest effective level). */
     private fun publicBroadcastScope(): String =
-        ZoneContext.broadcastChannel(myZone, geoLocator.currentPostal())
+        ZoneContext.broadcastChannel(myZone, geoLocator.current())
+
+    private fun routeClassForEntry(entry: LogEntry): ZoneRouter.RouteClass = when {
+        entry.agency -> ZoneRouter.RouteClass.AGENCY_OFFICIAL
+        entry.emergency -> ZoneRouter.RouteClass.EMERGENCY_NATIONAL
+        entry.scope == SCOPE_EVERYONE -> ZoneRouter.RouteClass.EMERGENCY_NATIONAL
+        else -> ZoneRouter.RouteClass.LOCAL
+    }
 
     private fun currentGeoSnapshot(): GeoLocator.Snapshot? = geoLocator.current()
 
-    /** Geo attached to public messages only when the user opts in to sharing. */
-    private fun shareableGeoSnapshot(): GeoLocator.Snapshot? =
-        if (isLocationSharing()) currentGeoSnapshot() else null
+    /** Routine public broadcasts never attach geo — use mutual locshare or emergency. */
+    private fun shareableGeoSnapshot(): GeoLocator.Snapshot? = null
 
-    fun isLocationSharing(): Boolean = prefs.getBoolean(KEY_LOCATION_SHARE, false)
+    private fun mutualLocationSnap(): MutualLocation.Snapshot = MutualLocation.load(prefs)
 
+    private fun saveMutualLocation(snap: MutualLocation.Snapshot) {
+        MutualLocation.save(prefs, snap)
+        callback?.onUpdate()
+    }
+
+    fun hasMutualLocationPeers(): Boolean = mutualLocationSnap().mutual.isNotEmpty()
+
+    fun isMutualLocationWith(peer: String): Boolean = mutualLocationSnap().isMutual(peer)
+
+    fun hasIncomingLocationOffer(peer: String): Boolean =
+        mutualLocationSnap().hasIncomingOffer(peer)
+
+    fun hasOutgoingLocationOffer(peer: String): Boolean =
+        mutualLocationSnap().hasOutgoingOffer(peer)
+
+    fun mutualLocationPeers(): Set<String> = mutualLocationSnap().mutual
+
+    /** @deprecated Mesh-wide share removed; true if any mutual peer exists. */
+    fun isLocationSharing(): Boolean = hasMutualLocationPeers()
+
+    /** Revokes all mutual shares when disabled. */
     fun setLocationSharing(enabled: Boolean) {
-        prefs.edit().putBoolean(KEY_LOCATION_SHARE, enabled).apply()
-        if (enabled) {
-            llmExecutor.execute {
-                geoLocator.refresh()
-                broadcastLocShare()
-                callback?.onUpdate()
-            }
-        } else {
-            broadcastLocHide()
-            callback?.onUpdate()
+        if (!enabled) revokeAllMutualLocation()
+    }
+
+    fun requestMutualLocation(peer: String) {
+        if (peer == myName || peer.isEmpty()) return
+        var snap = mutualLocationSnap()
+        if (snap.isMutual(peer) || snap.hasOutgoingOffer(peer)) return
+        snap = MutualLocation.recordOutgoingOffer(snap, peer)
+        saveMutualLocation(snap)
+        floodSignedLocPair("locoffer", peer) { ts -> MutualLocation.locOfferPayload(myName, peer, ts) }
+    }
+
+    fun acceptMutualLocation(peer: String) {
+        if (peer == myName || peer.isEmpty()) return
+        var snap = mutualLocationSnap()
+        if (snap.isMutual(peer)) return
+        snap = MutualLocation.establishMutual(snap, peer)
+        saveMutualLocation(snap)
+        floodSignedLocPair("locaccept", peer) { ts -> MutualLocation.locAcceptPayload(myName, peer, ts) }
+        llmExecutor.execute {
+            geoLocator.refresh()
+            broadcastLocShare()
         }
+    }
+
+    fun rejectMutualLocation(peer: String) {
+        if (peer == myName || peer.isEmpty()) return
+        var snap = mutualLocationSnap()
+        snap = MutualLocation.removePeer(snap, peer)
+        saveMutualLocation(snap)
+        floodSignedLocPair("locreject", peer) { ts -> MutualLocation.locRejectPayload(myName, peer, ts) }
+    }
+
+    fun revokeMutualLocation(peer: String) {
+        if (peer == myName || peer.isEmpty()) return
+        var snap = mutualLocationSnap()
+        if (!snap.isMutual(peer) && !snap.hasOutgoingOffer(peer) && !snap.hasIncomingOffer(peer)) return
+        snap = MutualLocation.removePeer(snap, peer)
+        saveMutualLocation(snap)
+        PeerLocationStore.remove(peer)
+        broadcastLocHide()
+    }
+
+    fun revokeAllMutualLocation() {
+        val peers = mutualLocationSnap().mutual.toList()
+        peers.forEach { revokeMutualLocation(it) }
+        var snap = mutualLocationSnap()
+        snap = MutualLocation.clearAllPending(snap)
+        saveMutualLocation(snap)
     }
 
     fun myLocationSnapshot(): GeoLocator.Snapshot? = geoLocator.current()
 
-    fun peerLocationOf(name: String): GeoLocator.Snapshot? = PeerLocationStore.get(name)
+    fun peerLocationOf(name: String): GeoLocator.Snapshot? =
+        if (isMutualLocationWith(name)) PeerLocationStore.get(name) else null
 
-    fun peersWithLocation(): Map<String, GeoLocator.Snapshot> = PeerLocationStore.allValid()
+    fun peersWithLocation(): Map<String, GeoLocator.Snapshot> {
+        val mutual = mutualLocationSnap().mutual
+        return PeerLocationStore.allValid().filterKeys { it in mutual }
+    }
 
     private fun notePeerGeo(from: String, geo: GeoLocator.Snapshot?) {
         if (from == myName || from.isEmpty() || geo == null) return
@@ -549,6 +994,7 @@ class MeshService : Service() {
     }
 
     fun broadcastLocShare() {
+        if (!hasMutualLocationPeers()) return
         val snap = geoLocator.current() ?: geoLocator.refresh() ?: return
         if (!snap.hasCoords()) return
         val ts = System.currentTimeMillis()
@@ -591,7 +1037,11 @@ class MeshService : Service() {
             android.util.Log.w("Location", "Rejected forged locshare from $from")
             return
         }
-        val snap = GeoLocator.Snapshot(lat, lon, postal, ts)
+        if (!isMutualLocationWith(from)) {
+            relay(obj, ttl)
+            return
+        }
+        val snap = GeoLocator.Snapshot(lat = lat, lon = lon, postal = postal, updatedAt = ts)
         notePeerGeo(from, snap)
         trackPeer(from)
         relay(obj, ttl)
@@ -612,7 +1062,115 @@ class MeshService : Service() {
                 return
             }
             PeerLocationStore.remove(from)
+            if (isMutualLocationWith(from)) {
+                var snap = mutualLocationSnap()
+                snap = MutualLocation.removePeer(snap, from)
+                saveMutualLocation(snap)
+            }
             callback?.onUpdate()
+        }
+        relay(obj, ttl)
+    }
+
+    private fun floodSignedLocPair(type: String, to: String, payloadBuilder: (Long) -> String) {
+        val ts = System.currentTimeMillis()
+        val payload = payloadBuilder(ts)
+        val sig = SignKeys.sign(payload) ?: return
+        val id = newId()
+        markSeen(id)
+        flood(locPairEnvelope(type, id, TTL_DEFAULT, myName, to, ts, sig))
+    }
+
+    private fun locPairEnvelope(
+        type: String, id: String, ttl: Int, from: String, to: String, ts: Long, sig: String,
+    ): String = baseEnvelope(type, id, ttl).apply {
+        put("from", from)
+        put("to", to)
+        put("kts", ts)
+        put("sig", sig)
+    }.toString()
+
+    private fun handleLocOffer(obj: JSONObject, ttl: Int) {
+        val from = obj.optString("from", "")
+        val to = obj.optString("to", "")
+        val ts = obj.optLong("kts", 0L)
+        val sig = obj.optString("sig", "")
+        if (from.isEmpty() || to.isEmpty() || from == myName) {
+            relay(obj, ttl)
+            return
+        }
+        val verifyKey = peerSignKeys[from] ?: run {
+            relay(obj, ttl)
+            return
+        }
+        if (!SignKeys.verify(MutualLocation.locOfferPayload(from, to, ts), sig, verifyKey)) {
+            android.util.Log.w("Location", "Rejected forged locoffer from $from")
+            return
+        }
+        if (to == myName) {
+            var snap = mutualLocationSnap()
+            if (!snap.isMutual(from)) {
+                snap = MutualLocation.recordIncomingOffer(snap, from)
+                saveMutualLocation(snap)
+                appendLog("Location", getString(R.string.loc_offer_received, from))
+            }
+        }
+        relay(obj, ttl)
+    }
+
+    private fun handleLocAccept(obj: JSONObject, ttl: Int) {
+        val from = obj.optString("from", "")
+        val to = obj.optString("to", "")
+        val ts = obj.optLong("kts", 0L)
+        val sig = obj.optString("sig", "")
+        if (from.isEmpty() || to.isEmpty() || from == myName) {
+            relay(obj, ttl)
+            return
+        }
+        val verifyKey = peerSignKeys[from] ?: run {
+            relay(obj, ttl)
+            return
+        }
+        if (!SignKeys.verify(MutualLocation.locAcceptPayload(from, to, ts), sig, verifyKey)) {
+            android.util.Log.w("Location", "Rejected forged locaccept from $from")
+            return
+        }
+        if (to == myName) {
+            var snap = mutualLocationSnap()
+            if (!snap.isMutual(from)) {
+                snap = MutualLocation.establishMutual(snap, from)
+                saveMutualLocation(snap)
+                appendLog("Location", getString(R.string.loc_accept_received, from))
+                llmExecutor.execute {
+                    geoLocator.refresh()
+                    broadcastLocShare()
+                }
+            }
+        }
+        relay(obj, ttl)
+    }
+
+    private fun handleLocReject(obj: JSONObject, ttl: Int) {
+        val from = obj.optString("from", "")
+        val to = obj.optString("to", "")
+        val ts = obj.optLong("kts", 0L)
+        val sig = obj.optString("sig", "")
+        if (from.isEmpty() || to.isEmpty() || from == myName) {
+            relay(obj, ttl)
+            return
+        }
+        val verifyKey = peerSignKeys[from] ?: run {
+            relay(obj, ttl)
+            return
+        }
+        if (!SignKeys.verify(MutualLocation.locRejectPayload(from, to, ts), sig, verifyKey)) {
+            android.util.Log.w("Location", "Rejected forged locreject from $from")
+            return
+        }
+        if (to == myName) {
+            var snap = mutualLocationSnap()
+            snap = MutualLocation.removePeer(snap, from)
+            saveMutualLocation(snap)
         }
         relay(obj, ttl)
     }
@@ -637,7 +1195,7 @@ class MeshService : Service() {
 
     fun feedScopeLabel(scope: String): String = when {
         scope == SCOPE_EVERYONE -> EVERYONE
-        MeshZone.isZoneScope(scope) -> effectiveZone().labelForScope(scope)
+        MeshZone.isZoneScope(scope) -> effectiveZone().headerNameForScope(scope)
         isDmScope(scope) -> peerFromDmScope(scope)
         else -> groupOf(scope)?.name ?: scope
     }
@@ -650,8 +1208,13 @@ class MeshService : Service() {
 
     /** Labels for area picker: locality (specific → broad), then Everyone, then groups. */
     fun feedScopeOptions(): List<Pair<String, String>> {
+        val zone = effectiveZone()
         val options = mutableListOf<Pair<String, String>>()
-        options.addAll(effectiveZone().optionsMostSpecificFirst())
+        options.addAll(
+            zone.optionsMostSpecificFirst().map { (scope, _) ->
+                scope to zone.pickerLabelForScope(scope)
+            },
+        )
         options.add(SCOPE_EVERYONE to EVERYONE)
         for (g in myGroups()) options.add(g.id to g.name)
         return options
@@ -747,14 +1310,29 @@ class MeshService : Service() {
     }
 
     private fun openAppIntent(): PendingIntent {
-        val intent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-        }
+        val intent = gatewayLauncherIntent()
         return PendingIntent.getActivity(
             this, 0, intent,
             PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
         )
     }
+
+    private fun gatewayLauncherIntent(): Intent {
+        if (BuildConfig.AGENCY_GATEWAY && isGatewayHeadless()) {
+            return Intent().apply {
+                setClassName(this@MeshService, GatewayHeadlessKeys.GATEWAY_ACTIVITY)
+                action = GatewayHeadlessKeys.ACTION_SHOW_UI
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_SINGLE_TOP
+            }
+        }
+        return Intent(this, MainActivity::class.java).apply {
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+        }
+    }
+
+    private fun isGatewayHeadless(): Boolean =
+        getSharedPreferences(GatewayHeadlessKeys.PREFS_NAME, MODE_PRIVATE)
+            .getBoolean(GatewayHeadlessKeys.KEY_HEADLESS, false)
 
     private fun notifyIncoming(title: String, message: String) {
         val notification = NotificationCompat.Builder(this, MESSAGE_CHANNEL_ID)
@@ -771,14 +1349,45 @@ class MeshService : Service() {
         manager.notify(messageNotificationId++, notification)
     }
 
+    private fun notifyAgency(agency: String, message: String) {
+        val title = getString(R.string.notify_agency, agency)
+        val notification = NotificationCompat.Builder(this, MESSAGE_CHANNEL_ID)
+            .setContentTitle(title)
+            .setContentText(message)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(message))
+            .setSmallIcon(R.drawable.ic_notification)
+            .setPriority(NotificationCompat.PRIORITY_MAX)
+            .setCategory(NotificationCompat.CATEGORY_ALARM)
+            .setAutoCancel(true)
+            .setContentIntent(openAppIntent())
+            .build()
+        getSystemService(NotificationManager::class.java)
+            .notify(messageNotificationId++, notification)
+    }
+
     private fun buildNotification(text: String): Notification {
-        return NotificationCompat.Builder(this, CHANNEL_ID)
+        val builder = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle("MeshHood active")
             .setContentText(text)
             .setSmallIcon(R.drawable.ic_notification)
             .setOngoing(true)
             .setPriority(NotificationCompat.PRIORITY_LOW)
-            .build()
+        if (BuildConfig.AGENCY_GATEWAY && isGatewayHeadless()) {
+            val openUi = gatewayLauncherIntent()
+            val openPending = PendingIntent.getActivity(
+                this,
+                1,
+                openUi,
+                PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT,
+            )
+            builder.setContentIntent(openPending)
+            builder.addAction(
+                0,
+                getString(R.string.gateway_notification_open_official_alerts),
+                openPending,
+            )
+        }
+        return builder.build()
     }
 
     private fun updateNotification(text: String) {
@@ -806,10 +1415,11 @@ class MeshService : Service() {
         sender: String,
         message: String,
         scope: String = SCOPE_EVERYONE,
-        emergency: Boolean = false
+        emergency: Boolean = false,
+        agency: Boolean = false,
     ) {
         val time = DateFormat.format("h:mm a", System.currentTimeMillis()).toString()
-        logEntries.add(LogEntry(time, sender, message, scope, emergency))
+        logEntries.add(LogEntry(time, sender, message, scope, emergency, agency))
         while (logEntries.size > MAX_LOG_ENTRIES) logEntries.removeAt(0)
         saveLog()
         callback?.onUpdate()
@@ -843,7 +1453,8 @@ class MeshService : Service() {
                                 sender = o.optString("sender", DEFAULT_NAME),
                                 text = o.optString("text", ""),
                                 scope = o.optString("scope", SCOPE_EVERYONE),
-                                emergency = o.optBoolean("emergency", false)
+                                emergency = o.optBoolean("emergency", false),
+                                agency = o.optBoolean("agency", false),
                             )
                         )
                     } else {
@@ -954,12 +1565,46 @@ class MeshService : Service() {
                 myZone = MeshZone.fromJson(JSONObject(raw))
             }
             migrateDefaultZone()
+            migrateStaleManualPlaceFields()
             feedScope = sanitizeFeedScope(feedScope)
             prefs.edit().putString(KEY_FEED_SCOPE, feedScope).apply()
         } catch (_: Exception) {
             // Corrupt store — start fresh rather than crash.
         }
+        if (prefs.contains(KEY_LOCATION_SHARE)) {
+            prefs.edit().remove(KEY_LOCATION_SHARE).apply()
+        }
         rebuildCoordinatorFromLog()
+    }
+
+    /** Strip old manual region labels — GPS drives location now. */
+    private fun migrateStaleManualPlaceFields() {
+        var zone = myZone
+        var changed = false
+        if (zone.region.isNotBlank() || zone.nationalRegion.isNotBlank()) {
+            zone = zone.copy(region = "", nationalRegion = "")
+            changed = true
+        }
+        if (changed) {
+            myZone = zone
+            prefs.edit().putString(KEY_MY_ZONE, myZone.toJson().toString()).apply()
+        }
+        if (MeshZone.isZoneScope(feedScope)) {
+            val level = MeshZone.levelFromScope(feedScope) ?: return
+            if (level == ZoneLevel.REGION || level == ZoneLevel.NATIONAL_REGION) {
+                feedScope = defaultAreaScope()
+                prefs.edit().putString(KEY_FEED_SCOPE, feedScope).apply()
+            } else {
+                val scopeVal = MeshZone.valueFromScope(feedScope).trim()
+                val anchorVal = myZone.value(level).trim()
+                if (scopeVal.isNotEmpty() && anchorVal.isNotEmpty() &&
+                    !scopeVal.equals(anchorVal, ignoreCase = true)
+                ) {
+                    feedScope = defaultAreaScope()
+                    prefs.edit().putString(KEY_FEED_SCOPE, feedScope).apply()
+                }
+            }
+        }
     }
 
     /** Existing profiles from before area support — seed nation so the picker is usable. */
@@ -974,8 +1619,12 @@ class MeshService : Service() {
     }
 
     /** True once state is set and/or live GPS postal is available. */
-    fun hasLocalArea(): Boolean =
-        myZone.state.isNotBlank() || geoLocator.currentPostal().isNotBlank()
+    fun hasLocalArea(): Boolean {
+        val snap = geoLocator.current()
+        return myZone.state.isNotBlank() ||
+            snap?.state?.isNotBlank() == true ||
+            geoLocator.currentPostal().isNotBlank()
+    }
 
     /** Drop stale scopes; default to most specific locality when area is configured. */
     private fun sanitizeFeedScope(scope: String): String {
@@ -1023,6 +1672,7 @@ class MeshService : Service() {
                 put("text", e.text)
                 put("scope", e.scope)
                 put("emergency", e.emergency)
+                put("agency", e.agency)
             })
         }
         prefs.edit().putString(KEY_LOG, arr.toString()).apply()
@@ -1234,6 +1884,15 @@ class MeshService : Service() {
 
     @SuppressLint("MissingPermission")
     private fun setupGattServer(bluetoothManager: BluetoothManager) {
+        try {
+            setupGattServerUnsafe(bluetoothManager)
+        } catch (_: SecurityException) {
+            setStatus("Bluetooth permission required")
+        }
+    }
+
+    @SuppressLint("MissingPermission")
+    private fun setupGattServerUnsafe(bluetoothManager: BluetoothManager) {
         val service = BluetoothGattService(SERVICE_UUID, BluetoothGattService.SERVICE_TYPE_PRIMARY)
         val characteristic = BluetoothGattCharacteristic(
             CHAR_UUID,
@@ -1276,7 +1935,7 @@ class MeshService : Service() {
             value: ByteArray
         ) {
             if (characteristic.uuid == CHAR_UUID) {
-                onTransportBytes(value)
+                onTransportBytes(value, TRANSPORT_BLE)
             }
             if (responseNeeded) {
                 try {
@@ -1344,7 +2003,11 @@ class MeshService : Service() {
                 setStatus("Advertising failed (code $errorCode)")
             }
         }
-        advertiser.startAdvertising(settings, data, advertiseCallback)
+        try {
+            advertiser.startAdvertising(settings, data, advertiseCallback)
+        } catch (_: SecurityException) {
+            setStatus("Bluetooth permission required")
+        }
     }
 
     fun getPeers(): List<String> = knownPeers.toList()
@@ -2201,15 +2864,20 @@ class MeshService : Service() {
         }
         val id = newId()
         markSeen(id)
-        appendLog("EMERGENCY", payload, scope = publicBroadcastScope(), emergency = true)
+        appendLog("EMERGENCY", payload, scope = SCOPE_EVERYONE, emergency = true)
         feedCoordinator(myName, payload)
         // Attach the ICE card so responders see vitals the moment the alert lands.
-        val scope = publicBroadcastScope()
         val geo = currentGeoSnapshot()
         val envelope = baseEnvelope("broadcast", id, TTL_DEFAULT).apply {
             put("from", myName)
             put("text", payload)
-            MessageChannel.attach(this, scope, geo)
+            ZoneRouter.attachRouting(
+                this,
+                ZoneRouter.RouteClass.EMERGENCY_NATIONAL,
+                SCOPE_EVERYONE,
+                effectiveZone(),
+                geo,
+            )
             if (!myIce.isBlank()) put("ice", iceToJson(myIce))
         }.toString()
         flood(envelope)
@@ -2241,7 +2909,13 @@ class MeshService : Service() {
         baseEnvelope("broadcast", id, ttl).apply {
             put("from", from)
             put("text", text)
-            MessageChannel.attach(this, channel, geo)
+            ZoneRouter.attachRouting(
+                this,
+                ZoneRouter.RouteClass.LOCAL,
+                channel,
+                effectiveZone(),
+                geo,
+            )
         }.toString()
 
     private fun sealedDmEnvelope(id: String, ttl: Int, body: String): String =
@@ -2292,12 +2966,26 @@ class MeshService : Service() {
         baseEnvelope("crew", id, ttl).apply {
             put("from", from)
             put("text", task)
+            ZoneRouter.attachRouting(
+                this,
+                ZoneRouter.RouteClass.LOCAL,
+                publicBroadcastScope(),
+                effectiveZone(),
+                shareableGeoSnapshot(),
+            )
         }.toString()
 
     private fun crewJoinEnvelope(id: String, ttl: Int, from: String, task: String): String =
         baseEnvelope("crewjoin", id, ttl).apply {
             put("from", from)
             put("text", task)
+            ZoneRouter.attachRouting(
+                this,
+                ZoneRouter.RouteClass.LOCAL,
+                publicBroadcastScope(),
+                effectiveZone(),
+                shareableGeoSnapshot(),
+            )
         }.toString()
 
     private fun profileEnvelope(
@@ -2408,11 +3096,23 @@ class MeshService : Service() {
         return true
     }
 
-    private fun flood(envelope: String) = notifySubscribers(envelope)
+    private fun flood(envelope: String) {
+        maybeStoreEnvelope(
+            envelope,
+            try {
+                JSONObject(envelope).optString("type", "")
+            } catch (_: Exception) {
+                ""
+            },
+        )
+        notifySubscribers(envelope)
+    }
 
-    /** Forward an already-parsed envelope one more hop, if it has TTL left. */
+    /** Forward an already-parsed envelope one more hop, if it has TTL left and zone policy allows. */
     private fun relay(obj: JSONObject, ttl: Int) {
         if (ttl <= 0) return
+        if (obj.optString("type") == "agency" && AgencyTrust.verify(obj) == null) return
+        if (!ZoneRouter.shouldRelay(obj, effectiveZone())) return
         obj.put("ttl", ttl - 1)
         flood(obj.toString())
     }
@@ -2427,7 +3127,7 @@ class MeshService : Service() {
         }
     }
 
-    private fun handleIncoming(raw: String) {
+    internal fun handleIncoming(raw: String) {
         val obj = try {
             JSONObject(raw)
         } catch (_: Exception) {
@@ -2442,8 +3142,17 @@ class MeshService : Service() {
 
         val type = obj.optString("type", "broadcast")
         val ttl = obj.optInt("ttl", 0)
+        maybeStoreEnvelope(raw, type)
 
         when (type) {
+            StateSync.TYPE_REQ -> {
+                handleSyncRequest(obj)
+            }
+
+            StateSync.TYPE_RESP -> {
+                handleSyncResponse(obj)
+            }
+
             "key" -> {
                 val from = obj.optString("from", "")
                 val pub = obj.optString("pub", "")
@@ -2477,6 +3186,12 @@ class MeshService : Service() {
 
             "lochide" -> handleLocHide(obj, ttl)
 
+            "locoffer" -> handleLocOffer(obj, ttl)
+
+            "locaccept" -> handleLocAccept(obj, ttl)
+
+            "locreject" -> handleLocReject(obj, ttl)
+
             "profile" -> handleProfile(obj, ttl)
 
             "crew" -> {
@@ -2484,7 +3199,7 @@ class MeshService : Service() {
                 val task = obj.optString("text", "")
                 if (from != myName) {
                     trackPeer(from)
-                    appendLog("\uD83D\uDCE3 Help call from $from", task)
+                    appendLog("\uD83D\uDCE3 Help call from $from", task, scope = MessageChannel.fromEnvelope(obj))
                     notifyIncoming("\uD83D\uDCE3 Help needed nearby", "$from: $task")
                 }
                 relay(obj, ttl)
@@ -2495,7 +3210,7 @@ class MeshService : Service() {
                 val task = obj.optString("text", "")
                 if (from != myName) {
                     trackPeer(from)
-                    appendLog("\u270B $from is in", task)
+                    appendLog("\u270B $from is in", task, scope = MessageChannel.fromEnvelope(obj))
                 }
                 relay(obj, ttl)
             }
@@ -2511,6 +3226,8 @@ class MeshService : Service() {
             "groupverify" -> handleGroupVerify(obj, ttl)
 
             "groupmsg" -> handleGroupMsg(obj, ttl)
+
+            "agency" -> handleAgency(obj, ttl)
 
             "broadcast" -> {
                 val from = obj.optString("from", DEFAULT_NAME)
@@ -2531,7 +3248,7 @@ class MeshService : Service() {
                         isPrivate = false,
                         from = from,
                         text = text,
-                        zoneScope = MessageChannel.channelFromGeo(obj),
+                        zoneScope = MessageChannel.fromEnvelope(obj),
                     )
                     MessageChannel.geoFromEnvelope(obj)?.let { notePeerGeo(from, it) }
                 }
@@ -2564,8 +3281,15 @@ class MeshService : Service() {
         }
     }
 
+    private fun handleAgency(obj: JSONObject, ttl: Int) {
+        val agency = AgencyTrust.verify(obj) ?: return
+        val text = obj.optString("text", "")
+        appendLog(agency.label, text, scope = SCOPE_EVERYONE, agency = true)
+        notifyAgency(agency.label, text)
+        relay(obj, ttl)
+    }
+
     /**
-     * Attempts to decrypt a sealed DM body with each known peer's per-pair key.
      * Returns (sender, text) on success, or null if it isn't for us.
      */
     private fun tryOpenSealedDm(body: String): Pair<String, String>? {
@@ -2676,15 +3400,25 @@ class MeshService : Service() {
     @Suppress("DEPRECATION")
     @SuppressLint("MissingPermission")
     private fun notifySubscribers(plaintextEnvelope: String) {
-        val bytes = Crypto.encrypt(plaintextEnvelope)
-        // Prefer high-bandwidth local pipes first, then proximity mesh radios.
-        if (lan?.hasPeers() == true) {
-            lan?.send(bytes)
+        val jsonWire = MeshSerializer.encodeJson(plaintextEnvelope)
+        val protoWire = MeshSerializer.encodeProto(plaintextEnvelope)
+        // LAN-first: high bandwidth when community WiFi is up.
+        val lanUp = lan?.hasPeers() == true
+        if (lanUp) {
+            val wire = if (protoCapable(TRANSPORT_LAN)) protoWire else jsonWire
+            lan?.send(Crypto.encryptBytes(wire))
         }
-        if (wifiDirect?.hasPeers() == true) {
-            wifiDirect?.send(bytes)
+        // Gateway nodes bridge all radios; peers stay on LAN when it is available.
+        if (isGatewayMode() || !lanUp) {
+            if (wifiDirect?.hasPeers() == true) {
+                val wire = if (protoCapable(TRANSPORT_WIFI_DIRECT)) protoWire else jsonWire
+                wifiDirect?.send(Crypto.encryptBytes(wire))
+            }
+            sendBle(Crypto.encryptBytes(jsonWire))
         }
-        sendBle(bytes)
+        if (shouldRunCellularUplink() && cellular?.isDataReady() == true) {
+            cellularUplink?.send(Crypto.encryptBytes(jsonWire))
+        }
     }
 
     @SuppressLint("MissingPermission")
@@ -2719,6 +3453,10 @@ class MeshService : Service() {
         }
         try {
             cellular?.stop()
+        } catch (_: Exception) {
+        }
+        try {
+            stopCellularUplink()
         } catch (_: Exception) {
         }
         try {

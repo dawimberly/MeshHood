@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
+
+    <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+
+    <application android:label="@string/app_name">
+
+        <activity
+            android:name=".gateway.AgencyGatewayActivity"
+            android:exported="true"
+            android:launchMode="singleTop"
+            android:label="@string/agency_gateway_title">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="com.meshhood.gateway.SHOW_UI" />
+                <category android:name="android.intent.category.DEFAULT" />
+            </intent-filter>
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/gateway_shortcuts" />
+        </activity>
+
+        <receiver
+            android:name=".gateway.GatewayUiReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="com.meshhood.gateway.HEADLESS_ON" />
+                <action android:name="com.meshhood.gateway.SHOW_UI" />
+            </intent-filter>
+        </receiver>
+
+        <receiver
+            android:name=".gateway.GatewayBootReceiver"
+            android:exported="true">
+            <intent-filter>
+                <action android:name="android.intent.action.BOOT_COMPLETED" />
+                <action android:name="android.intent.action.MY_PACKAGE_REPLACED" />
+            </intent-filter>
+        </receiver>
+
+        <activity
+            android:name=".MainActivity"
+            tools:node="merge">
+            <intent-filter tools:node="removeAll" />
+        </activity>
+    </application>
+</manifest>

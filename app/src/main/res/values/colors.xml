@@ -41,6 +41,10 @@
     <color name="mesh_ice_card">#2A3528</color>
     <color name="mesh_ice_text">#FDE68A</color>
 
+    <!-- Feed card fills -->
+    <color name="mesh_feed_self_bg">#1A2430</color>
+    <color name="mesh_feed_emergency_bg">#2A1A1A</color>
+
     <!-- Transport channel dots -->
     <color name="mesh_channel_active">#4ADE80</color>
     <color name="mesh_channel_search">#FFCA58</color>

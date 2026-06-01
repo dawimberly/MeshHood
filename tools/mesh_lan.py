@@ -17,8 +17,8 @@ except ImportError:
 SERVICE_TYPE = "_meshhood._tcp.local."
 
 
-def discover_phones(timeout: float = 15.0, retries: int = 2) -> list[tuple[str, int, str]]:
-    """Return [(host, port, service_name), ...] for MeshHood LAN adverts."""
+def discover_phones(timeout: float = 15.0, retries: int = 2) -> list[tuple[str, int, str, str]]:
+    """Return [(host, port, service_name, role), ...] for MeshHood LAN adverts."""
     if Zeroconf is None:
         print("  (install zeroconf: pip install zeroconf)", flush=True)
         return []
@@ -32,8 +32,8 @@ def discover_phones(timeout: float = 15.0, retries: int = 2) -> list[tuple[str, 
     return []
 
 
-def _discover_once(timeout: float) -> list[tuple[str, int, str]]:
-    found: list[tuple[str, int, str]] = []
+def _discover_once(timeout: float) -> list[tuple[str, int, str, str]]:
+    found: list[tuple[str, int, str, str]] = []
     lock = threading.Lock()
 
     class Listener(ServiceListener):
@@ -42,9 +42,14 @@ def _discover_once(timeout: float) -> list[tuple[str, int, str]]:
             if not info or not info.addresses:
                 return
             host = socket.inet_ntoa(info.addresses[0])
+            role = "peer"
+            props = info.properties or {}
+            raw = props.get("role") or props.get(b"role")
+            if raw is not None:
+                role = raw.decode() if isinstance(raw, bytes) else str(raw)
             with lock:
-                if not any(h == host and p == info.port for h, p, _ in found):
-                    found.append((host, info.port, name))
+                if not any(h == host and p == info.port for h, p, _, _ in found):
+                    found.append((host, info.port, name, role))
 
         def remove_service(self, zc: Zeroconf, type_: str, name: str) -> None:
             pass

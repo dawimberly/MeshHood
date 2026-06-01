@@ -10,7 +10,7 @@ import java.io.DataOutputStream
 import java.net.InetSocketAddress
 import java.net.ServerSocket
 import java.net.Socket
-import java.util.concurrent.ConcurrentLinkedQueue
+import java.util.concurrent.ConcurrentLinkedDeque
 import java.util.concurrent.CopyOnWriteArrayList
 import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
@@ -37,13 +37,18 @@ import kotlin.concurrent.thread
  */
 class LanTransport(
     private val context: Context,
+    private val role: String = ROLE_PEER,
     private val onBytes: (ByteArray) -> Unit,
-    private val onStatus: (String) -> Unit
+    private val onStatus: (String) -> Unit,
+    private val onPeerConnected: (() -> Unit)? = null,
 ) {
     companion object {
         private const val TAG = "LanTransport"
         private const val SERVICE_TYPE = "_meshhood._tcp."
         private const val MAX_FRAME = 64 * 1024
+        const val ROLE_GATEWAY = "gateway"
+        const val ROLE_PEER = "peer"
+        private const val TXT_ROLE = "role"
     }
 
     private val nsd: NsdManager? by lazy {
@@ -70,7 +75,7 @@ class LanTransport(
     @Volatile private var registeredName: String = myServiceName
 
     // NSD historically resolves one service at a time; serialize requests.
-    private val resolveQueue = ConcurrentLinkedQueue<NsdServiceInfo>()
+    private val resolveQueue = ConcurrentLinkedDeque<NsdServiceInfo>()
     private val resolving = AtomicBoolean(false)
 
     fun start() {
@@ -80,7 +85,7 @@ class LanTransport(
             startServer()           // sets localPort
             registerService()
             startDiscovery()
-            onStatus("WiFi LAN: searching")
+            publishStatus(0)
         } catch (t: Throwable) {
             Log.e(TAG, "start failed", t)
             onStatus("WiFi LAN: unavailable")
@@ -123,6 +128,7 @@ class LanTransport(
             serviceName = myServiceName
             serviceType = SERVICE_TYPE
             port = localPort
+            setAttribute(TXT_ROLE, role)
         }
         registrationListener = object : NsdManager.RegistrationListener {
             override fun onServiceRegistered(s: NsdServiceInfo) {
@@ -149,7 +155,11 @@ class LanTransport(
             override fun onServiceFound(info: NsdServiceInfo) {
                 if (info.serviceType?.contains("_meshhood") != true) return
                 if (info.serviceName == registeredName) return // our own advert
-                resolveQueue.add(info)
+                if (role == ROLE_PEER && isGatewayAdvert(info)) {
+                    resolveQueue.addFirst(info)
+                } else {
+                    resolveQueue.addLast(info)
+                }
                 pumpResolveQueue()
             }
             override fun onServiceLost(info: NsdServiceInfo) {}
@@ -217,8 +227,15 @@ class LanTransport(
     private fun handleSocket(socket: Socket) {
         val host = socket.inetAddress?.hostAddress
         val out = DataOutputStream(socket.getOutputStream())
-        outStreams.add(out)
+        val isNewLink = outStreams.add(out)
         updatePeerStatus()
+        if (isNewLink) {
+            try {
+                onPeerConnected?.invoke()
+            } catch (t: Throwable) {
+                Log.w(TAG, "onPeerConnected failed", t)
+            }
+        }
         thread(name = "lan-read", isDaemon = true) {
             try {
                 val input = DataInputStream(socket.getInputStream())
@@ -240,9 +257,18 @@ class LanTransport(
         }
     }
 
+    private fun isGatewayAdvert(info: NsdServiceInfo): Boolean {
+        val raw = info.attributes?.get(TXT_ROLE) ?: return false
+        return String(raw, Charsets.UTF_8) == ROLE_GATEWAY
+    }
+
+    private fun publishStatus(linked: Int) {
+        val prefix = if (role == ROLE_GATEWAY) "WiFi LAN: gateway · " else "WiFi LAN: "
+        onStatus(if (linked == 0) "${prefix}searching" else "${prefix}$linked linked")
+    }
+
     private fun updatePeerStatus() {
-        val n = outStreams.size
-        onStatus(if (n == 0) "WiFi LAN: searching" else "WiFi LAN: $n linked")
+        publishStatus(outStreams.size)
     }
 
     /** Send already-encrypted envelope bytes to all linked LAN peers. */

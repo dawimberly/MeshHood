@@ -13,31 +13,63 @@
         android:orientation="vertical"
         android:paddingTop="10dp">
 
-        <!-- Phone-style status: bars + network label, top right -->
-        <FrameLayout
+        <!-- Phone-style status: readiness + bars + network label, top right -->
+        <LinearLayout
+            android:id="@+id/transportStrip"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:clipChildren="false"
+            android:clipToPadding="false"
+            android:contentDescription="@string/mesh_status_cd"
+            android:gravity="end|center_vertical"
+            android:orientation="horizontal"
             android:paddingHorizontal="@dimen/spacing_md"
             android:paddingBottom="2dp">
 
-            <LinearLayout
-                android:id="@+id/transportStrip"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_gravity="end|center_vertical"
-                android:contentDescription="@string/mesh_status_cd"
-                android:gravity="center_vertical"
-                android:orientation="horizontal">
+                <View
+                    android:id="@+id/networkReadinessDot"
+                    android:layout_width="10dp"
+                    android:layout_height="10dp"
+                    android:layout_marginEnd="5dp"
+                    android:background="@drawable/network_readiness_dot"
+                    android:contentDescription="@string/network_readiness_cd"
+                    android:visibility="visible" />
+
+                <TextView
+                    android:id="@+id/networkReadinessLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="6dp"
+                    android:fontFamily="sans-serif-medium"
+                    android:letterSpacing="0.02"
+                    android:minWidth="56dp"
+                    android:text="@string/network_readiness_offline"
+                    android:textColor="@color/mesh_channel_error"
+                    android:textSize="10sp"
+                    android:textStyle="bold" />
 
                 <TextView
                     android:id="@+id/neighborCountText"
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:layout_marginEnd="5dp"
+                    android:layout_marginEnd="6dp"
                     android:fontFamily="sans-serif-medium"
-                    android:textColor="@color/mesh_on_surface_variant"
-                    android:textSize="9sp"
+                    android:textColor="@color/mesh_on_surface"
+                    android:textSize="10sp"
                     android:visibility="gone" />
+
+                <ImageButton
+                    android:id="@+id/networkReadinessHelp"
+                    android:layout_width="24dp"
+                    android:layout_height="24dp"
+                    android:layout_marginEnd="5dp"
+                    android:background="?attr/selectableItemBackgroundBorderless"
+                    android:contentDescription="@string/network_readiness_help_cd"
+                    android:padding="3dp"
+                    android:scaleType="centerInside"
+                    android:src="@drawable/ic_help_outline"
+                    android:visibility="gone"
+                    app:tint="@color/mesh_on_surface" />
 
                 <LinearLayout
                     android:id="@+id/signalBarsContainer"
@@ -93,8 +125,7 @@
                     android:textColor="@color/mesh_on_surface"
                     android:textSize="10sp"
                     android:textStyle="bold" />
-            </LinearLayout>
-        </FrameLayout>
+        </LinearLayout>
 
         <LinearLayout
             android:layout_width="match_parent"
@@ -165,26 +196,43 @@
             android:layout_weight="1"
             android:orientation="vertical">
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/areaPickerButton"
-                style="@style/Widget.Material3.Button.TextButton"
+            <LinearLayout
+                android:id="@+id/areaPickerRow"
                 android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_gravity="start"
-                android:minHeight="0dp"
-                android:minWidth="0dp"
-                android:paddingHorizontal="0dp"
-                android:paddingVertical="0dp"
-                android:text="@string/area_picker_button"
-                android:textAllCaps="false"
-                android:textColor="@color/mesh_on_surface"
-                android:textSize="24sp"
-                android:textStyle="bold"
-                app:icon="@drawable/ic_expand_more"
-                app:iconGravity="end"
-                app:iconPadding="4dp"
-                app:iconSize="20dp"
-                app:iconTint="@color/mesh_on_surface_variant" />
+                android:background="?attr/selectableItemBackgroundBorderless"
+                android:clickable="true"
+                android:contentDescription="@string/area_picker_button"
+                android:focusable="true"
+                android:gravity="center_vertical"
+                android:minHeight="48dp"
+                android:orientation="horizontal"
+                android:paddingHorizontal="4dp"
+                android:paddingVertical="6dp">
+
+                <TextView
+                    android:id="@+id/areaPickerLabel"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:fontFamily="sans-serif-medium"
+                    android:letterSpacing="-0.01"
+                    android:text="@string/area_picker_button"
+                    android:textColor="@color/mesh_on_surface"
+                    android:textSize="16sp" />
+
+                <ImageView
+                    android:layout_width="16dp"
+                    android:layout_height="16dp"
+                    android:layout_marginStart="2dp"
+                    android:clickable="false"
+                    android:contentDescription="@null"
+                    android:focusable="false"
+                    android:importantForAccessibility="no"
+                    android:src="@drawable/ic_expand_more"
+                    app:tint="@color/mesh_on_surface_variant" />
+            </LinearLayout>
 
             <TextView
                 android:id="@+id/feedTitleText"
@@ -289,6 +337,8 @@
         android:layout_width="match_parent"
         android:layout_height="0dp"
         android:layout_weight="1"
+        android:clipChildren="false"
+        android:clipToPadding="false"
         android:orientation="vertical"
         android:paddingHorizontal="12dp"
         android:paddingTop="8dp"
@@ -297,18 +347,45 @@
         <LinearLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:clipChildren="false"
+            android:clipToPadding="false"
             android:gravity="center_vertical"
+            android:minHeight="44dp"
             android:orientation="horizontal"
             android:paddingHorizontal="4dp"
+            android:paddingTop="2dp"
             android:paddingBottom="8dp">
 
-            <TextView
-                android:id="@+id/feedSectionLabel"
-                style="@style/MeshHoodTextSection"
-                android:layout_width="0dp"
+            <LinearLayout
+                android:id="@+id/feedSortRow"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:text="@string/feed_section_label" />
+                android:clipChildren="false"
+                android:clipToPadding="false"
+                android:orientation="horizontal">
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/feedSortRecentButton"
+                    style="@style/Widget.MeshHood.ChipCompact"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="6dp"
+                    android:minWidth="0dp"
+                    android:text="@string/feed_sort_recent" />
+
+                <com.google.android.material.button.MaterialButton
+                    android:id="@+id/feedSortNearbyButton"
+                    style="@style/Widget.MeshHood.ChipCompact"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:minWidth="0dp"
+                    android:text="@string/feed_sort_nearby" />
+            </LinearLayout>
+
+            <View
+                android:layout_width="0dp"
+                android:layout_height="0dp"
+                android:layout_weight="1" />
 
             <TextView
                 android:id="@+id/feedPostCountText"
@@ -319,29 +396,35 @@
                 android:visibility="gone" />
         </LinearLayout>
 
-        <ScrollView
-            android:id="@+id/logScroll"
+        <FrameLayout
+            android:id="@+id/feedPanel"
             android:layout_width="match_parent"
             android:layout_height="0dp"
             android:layout_weight="1"
             android:background="@drawable/feed_panel_bg"
-            android:clipToPadding="false"
-            android:fillViewport="true"
-            android:paddingHorizontal="@dimen/spacing_md"
-            android:paddingTop="@dimen/spacing_md"
-            android:paddingBottom="@dimen/spacing_md"
-            android:scrollbars="none">
+            android:clipToPadding="false">
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/feedList"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:clipToPadding="false"
+                android:paddingHorizontal="@dimen/spacing_sm"
+                android:paddingTop="@dimen/spacing_sm"
+                android:paddingBottom="@dimen/spacing_sm"
+                android:scrollbars="none" />
 
             <TextView
-                android:id="@+id/messageText"
+                android:id="@+id/feedEmptyText"
                 android:layout_width="match_parent"
-                android:layout_height="wrap_content"
+                android:layout_height="match_parent"
                 android:fontFamily="sans-serif"
-                android:lineSpacingExtra="6dp"
+                android:gravity="center"
+                android:paddingHorizontal="@dimen/spacing_md"
                 android:text="@string/feed_empty"
                 android:textColor="@color/mesh_on_surface_variant"
                 android:textSize="15sp" />
-        </ScrollView>
+        </FrameLayout>
     </LinearLayout>
 
     <!-- Bottom dock -->

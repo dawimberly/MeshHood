@@ -38,27 +38,40 @@ object Crypto {
     private val random = SecureRandom()
 
     // Neighborhood-key encryption (transport layer, all messages).
-    fun encrypt(plaintext: String): ByteArray = encryptWithKey(key.encoded, plaintext)
+    fun encrypt(plaintext: String): ByteArray = encryptBytes(plaintext.toByteArray(Charsets.UTF_8))
 
-    fun decrypt(data: ByteArray): String? = decryptWithKey(key.encoded, data)
+    fun decrypt(data: ByteArray): String? =
+        decryptBytes(data)?.toString(Charsets.UTF_8)
+
+    /** Encrypt arbitrary wire plaintext (JSON UTF-8 or protobuf + magic). */
+    fun encryptBytes(plaintext: ByteArray): ByteArray = encryptWithKeyBytes(key.encoded, plaintext)
+
+    /** Decrypt to raw wire bytes (JSON or protobuf frame). */
+    fun decryptBytes(data: ByteArray): ByteArray? = decryptWithKeyBytes(key.encoded, data)
 
     // Per-pair-key encryption (used for private direct messages with X25519).
-    fun encryptWithKey(keyBytes: ByteArray, plaintext: String): ByteArray {
+    fun encryptWithKey(keyBytes: ByteArray, plaintext: String): ByteArray =
+        encryptWithKeyBytes(keyBytes, plaintext.toByteArray(Charsets.UTF_8))
+
+    fun encryptWithKeyBytes(keyBytes: ByteArray, plaintext: ByteArray): ByteArray {
         val nonce = ByteArray(NONCE_LENGTH).also { random.nextBytes(it) }
         val cipher = Cipher.getInstance("AES/GCM/NoPadding")
         cipher.init(Cipher.ENCRYPT_MODE, SecretKeySpec(keyBytes, "AES"), GCMParameterSpec(TAG_LENGTH_BITS, nonce))
-        val ciphertext = cipher.doFinal(plaintext.toByteArray(Charsets.UTF_8))
+        val ciphertext = cipher.doFinal(plaintext)
         return nonce + ciphertext
     }
 
-    fun decryptWithKey(keyBytes: ByteArray, data: ByteArray): String? {
+    fun decryptWithKey(keyBytes: ByteArray, data: ByteArray): String? =
+        decryptWithKeyBytes(keyBytes, data)?.toString(Charsets.UTF_8)
+
+    fun decryptWithKeyBytes(keyBytes: ByteArray, data: ByteArray): ByteArray? {
         return try {
             if (data.size <= NONCE_LENGTH) return null
             val nonce = data.copyOfRange(0, NONCE_LENGTH)
             val ciphertext = data.copyOfRange(NONCE_LENGTH, data.size)
             val cipher = Cipher.getInstance("AES/GCM/NoPadding")
             cipher.init(Cipher.DECRYPT_MODE, SecretKeySpec(keyBytes, "AES"), GCMParameterSpec(TAG_LENGTH_BITS, nonce))
-            cipher.doFinal(ciphertext).toString(Charsets.UTF_8)
+            cipher.doFinal(ciphertext)
         } catch (_: Exception) {
             null
         }

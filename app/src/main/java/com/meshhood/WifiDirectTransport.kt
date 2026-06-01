@@ -42,7 +42,8 @@ import kotlin.concurrent.thread
 class WifiDirectTransport(
     private val context: Context,
     private val onBytes: (ByteArray) -> Unit,
-    private val onStatus: (String) -> Unit
+    private val onStatus: (String) -> Unit,
+    private val onPeerConnected: (() -> Unit)? = null,
 ) {
     companion object {
         private const val TAG = "WifiDirect"
@@ -138,7 +139,16 @@ class WifiDirectTransport(
         if (deviceAddress == null) return
         if (!connectedPeers.add(deviceAddress)) return // already connecting/connected
         val config = WifiP2pConfig().apply { this.deviceAddress = deviceAddress }
-        manager?.connect(channel, config, logListener("connect:$deviceAddress"))
+        manager?.connect(channel, config, object : WifiP2pManager.ActionListener {
+            override fun onSuccess() {
+                Log.i(TAG, "connect:$deviceAddress ok")
+            }
+
+            override fun onFailure(reason: Int) {
+                connectedPeers.remove(deviceAddress)
+                Log.w(TAG, "connect:$deviceAddress failed: $reason")
+            }
+        })
         onStatus("WiFi Direct: connecting")
     }
 
@@ -146,13 +156,16 @@ class WifiDirectTransport(
     private fun requestConnectionInfo() {
         val mgr = manager ?: return
         val ch = channel ?: return
-        mgr.requestConnectionInfo(ch) { info ->
-            if (info == null || !info.groupFormed) return@requestConnectionInfo
+        mgr.requestConnectionInfo(ch) connInfo@ { info ->
+            if (info == null || !info.groupFormed) {
+                connectedPeers.clear()
+                return@connInfo
+            }
             if (info.isGroupOwner) {
                 startServer()
                 onStatus("WiFi Direct: connected (host)")
             } else {
-                val host = info.groupOwnerAddress?.hostAddress ?: return@requestConnectionInfo
+                val host = info.groupOwnerAddress?.hostAddress ?: return@connInfo
                 connectToHost(host)
                 onStatus("WiFi Direct: connected")
             }
@@ -190,7 +203,14 @@ class WifiDirectTransport(
     /** Registers a socket for sending and starts a read loop for receiving. */
     private fun handleSocket(socket: Socket) {
         val out = DataOutputStream(socket.getOutputStream())
-        outStreams.add(out)
+        val isNewLink = outStreams.add(out)
+        if (isNewLink) {
+            try {
+                onPeerConnected?.invoke()
+            } catch (t: Throwable) {
+                Log.w(TAG, "onPeerConnected failed", t)
+            }
+        }
         thread(name = "wifi-direct-read", isDaemon = true) {
             try {
                 val input = DataInputStream(socket.getInputStream())
@@ -231,6 +251,7 @@ class WifiDirectTransport(
     @SuppressLint("MissingPermission")
     fun stop() {
         started = false
+        connectedPeers.clear()
         try { receiver?.let { context.unregisterReceiver(it) } } catch (_: Throwable) {}
         receiver = null
         try { serverSocket?.close() } catch (_: Throwable) {}

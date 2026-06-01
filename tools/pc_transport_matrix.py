@@ -84,8 +84,10 @@ def test_lan(auto: bool) -> bool:
         print("     Check: phone on Wi‑Fi, MeshHood running, same network as PC.", flush=True)
         return False
 
-    host, port, name = peers[0]
-    print(f"  ✓ Found {name} at {host}:{port}", flush=True)
+    peers.sort(key=lambda p: (0 if p[3] == "gateway" else 1, p[0]))
+    host, port, name, role = peers[0]
+    role_note = f" [{role}]" if role != "peer" else ""
+    print(f"  ✓ Found {name}{role_note} at {host}:{port}", flush=True)
 
     rosa = Neighbor("Rosa")
     received: list[str] = []

@@ -72,6 +72,54 @@ data class MeshZone(
         }
     }
 
+    /** Compact header: human place name only (no "Local ·" prefix). */
+    fun shortLabelForScope(scope: String): String {
+        if (!isZoneScope(scope)) return scope
+        val level = levelFromScope(scope) ?: return scope
+        val v = valueFromScope(scope).ifBlank { value(level).trim() }
+        if (v.isEmpty()) return scope
+        return v
+    }
+
+    /** Header display — strips accidental "Local" prefixes and title-cases. */
+    fun headerNameForScope(scope: String): String {
+        if (!isZoneScope(scope)) return scope
+        val level = levelFromScope(scope) ?: return scope
+        val v = valueFromScope(scope).ifBlank { value(level).trim() }
+        if (v.isEmpty()) return scope
+        if (level == ZoneLevel.STATE) {
+            return UsStates.displayName(v).ifBlank { formatHeaderWords(v) }
+        }
+        return formatHeaderWords(v)
+    }
+
+    /** Area picker row — short labels without redundant scope prefixes. */
+    fun pickerLabelForScope(scope: String): String {
+        if (!isZoneScope(scope)) return scope
+        val level = levelFromScope(scope) ?: return scope
+        val v = valueFromScope(scope).ifBlank { value(level).trim() }
+        if (v.isEmpty()) return scope
+        return when (level) {
+            ZoneLevel.LOCAL -> formatHeaderWords(v)
+            ZoneLevel.POSTAL -> "ZIP $v"
+            ZoneLevel.STATE -> UsStates.displayName(v).ifBlank { formatHeaderWords(v) }
+            ZoneLevel.REGION -> formatHeaderWords(v)
+            ZoneLevel.NATIONAL_REGION -> formatHeaderWords(v)
+            ZoneLevel.NATION -> formatHeaderWords(v)
+        }
+    }
+
+    private fun formatHeaderWords(raw: String): String {
+        val cleaned = raw
+            .replace(Regex("(?i)^local\\s*[·.]?\\s*"), "")
+            .trim()
+            .ifBlank { raw }
+        return cleaned.split("\\s+".toRegex())
+            .joinToString(" ") { word ->
+                word.lowercase().replaceFirstChar { it.titlecase() }
+            }
+    }
+
     fun labelForScope(scope: String): String {
         if (!isZoneScope(scope)) return scope
         val level = levelFromScope(scope) ?: return scope

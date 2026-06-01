@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+    <shortcut
+        android:enabled="true"
+        android:icon="@mipmap/ic_launcher"
+        android:shortcutId="official_alerts"
+        android:shortcutLongLabel="@string/agency_gateway_title"
+        android:shortcutShortLabel="@string/agency_gateway_title">
+        <intent
+            android:action="com.meshhood.gateway.SHOW_UI"
+            android:targetClass="com.meshhood.gateway.AgencyGatewayActivity"
+            android:targetPackage="com.meshhood.gateway" />
+    </shortcut>
+</shortcuts>

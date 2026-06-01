@@ -16,13 +16,13 @@ import androidx.core.content.ContextCompat
 /**
  * Fourth transport channel: cellular link monitoring + emergency SMS fallback.
  *
- * Full peer mesh over cellular data requires a gateway/relay (roadmap). Today this
- * layer (1) reports cell data readiness in the status strip and (2) sends a plain
+ * Gateway uplink relay transport lives in [CellularUplink] (HTTP over mobile data).
+ * This class (1) reports cell data readiness in the status strip and (2) sends a plain
  * SMS to your ICE contact when mesh radios cannot reach anyone.
  */
 class CellularTransport(
     private val context: Context,
-    private val onStatus: (String) -> Unit,
+    private val onLinkChanged: () -> Unit,
 ) {
     companion object {
         private const val TAG = "CellularTransport"
@@ -30,6 +30,9 @@ class CellularTransport(
 
     @Volatile
     private var dataReady = false
+
+    @Volatile
+    private var metered = true
 
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
@@ -52,6 +55,7 @@ class CellularTransport(
 
             override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
                 dataReady = caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
+                metered = !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
                 publishStatus()
             }
         }
@@ -59,9 +63,15 @@ class CellularTransport(
         try {
             cm.registerNetworkCallback(request, callback)
             dataReady = cm.activeNetwork?.let { net ->
-                cm.getNetworkCapabilities(net)?.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) == true &&
-                    cm.getNetworkCapabilities(net)?.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET) == true
+                val caps = cm.getNetworkCapabilities(net) ?: return@let false
+                caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) &&
+                    caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET)
             } ?: false
+            metered = cm.activeNetwork?.let { net ->
+                val caps = cm.getNetworkCapabilities(net) ?: return@let true
+                caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR) &&
+                    !caps.hasCapability(NetworkCapabilities.NET_CAPABILITY_NOT_METERED)
+            } ?: true
         } catch (t: Throwable) {
             Log.e(TAG, "registerNetworkCallback failed", t)
             dataReady = false
@@ -81,6 +91,23 @@ class CellularTransport(
     }
 
     fun isDataReady(): Boolean = dataReady
+
+    /** True when the active cellular network is treated as metered (typical mobile data). */
+    fun isMetered(): Boolean = metered
+
+    fun hasSim(): Boolean {
+        val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
+        return tm.simState == TelephonyManager.SIM_STATE_READY
+    }
+
+    /** Link-only status for consumer builds and gateway fallback. */
+    fun linkStatusLine(): String {
+        return when {
+            !hasSim() -> context.getString(R.string.cell_status_no_sim)
+            dataReady -> context.getString(R.string.cell_status_ready)
+            else -> context.getString(R.string.cell_status_offline)
+        }
+    }
 
     /** SMS emergency path — uses cellular even when mesh radios have no peers. */
     fun sendEmergencySms(
@@ -123,14 +150,7 @@ class CellularTransport(
     }
 
     private fun publishStatus() {
-        val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
-        val sim = tm.simState == TelephonyManager.SIM_STATE_READY
-        val status = when {
-            !sim -> context.getString(R.string.cell_status_no_sim)
-            dataReady -> context.getString(R.string.cell_status_ready)
-            else -> context.getString(R.string.cell_status_offline)
-        }
-        onStatus(status)
+        onLinkChanged()
     }
 
     private fun normalizePhone(raw: String): String {

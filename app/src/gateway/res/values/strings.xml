@@ -1,0 +1,33 @@
+﻿<resources>
+    <string name="app_name">MeshHood Gateway</string>
+    <string name="agency_gateway_title">Official alerts</string>
+    <string name="agency_gateway_subtitle">Hub app for home Wi‑Fi — not your daily MeshHood app. Use a spare phone on charger, or this device for testing.</string>
+    <string name="gateway_setup_getting_started">Turn on Gateway mode and leave this phone on home Wi‑Fi. Consumer phones on the same network discover it as the LAN hub. Cellular relay below is optional.</string>
+    <string name="agency_gateway_agency_label">Agency</string>
+    <string name="agency_gateway_message_hint">Alert text (shelter, evacuation, road closure.)</string>
+    <string name="agency_gateway_send">Broadcast alert</string>
+    <string name="agency_gateway_sent">Alert signed and sent on mesh</string>
+    <string name="agency_gateway_failed">Could not sign alert - check signing key setup</string>
+    <string name="agency_gateway_no_key">No signing key configured. Run tools\setup_agency_gateway.cmd on your PC.</string>
+    <string name="agency_gateway_open_app">Open full app</string>
+    <string name="agency_gateway_mesh_status">Mesh status</string>
+    <string name="agency_gateway_mesh_starting">Starting mesh radio...</string>
+    <string name="agency_gateway_permissions_required">Bluetooth and location permissions are required for the mesh.</string>
+    <string name="agency_gateway_permissions_denied">Permissions needed - mesh radio cannot start.</string>
+    <string name="agency_gateway_grant_permissions">Grant permissions</string>
+    <string name="agency_gateway_open_settings">Open app settings</string>
+    <string name="agency_gateway_status_ble_waiting">%1$s\nNo phone linked yet over Bluetooth — this is normal until a neighbor opens MeshHood nearby.</string>
+    <string name="agency_gateway_status_lan_searching">%1$s\nWi‑Fi LAN is listening for other MeshHood devices on your network.</string>
+    <string name="gateway_headless_label">Run headless on boot</string>
+    <string name="gateway_headless_hint">After reboot the mesh hub starts in the background. Tap the app icon or mesh notification anytime to reopen Official alerts.</string>
+    <string name="gateway_headless_confirm_title">Run headless on boot?</string>
+    <string name="gateway_headless_confirm_message">Headless keeps the mesh running in the background after reboot. You can reopen Official alerts anytime from the app icon or the mesh notification.</string>
+    <string name="gateway_headless_on_toast">Headless enabled. Mesh will start on boot; reopen Official alerts from the app icon anytime.</string>
+    <string name="gateway_headless_off_toast">Headless disabled — gateway UI will show on launch.</string>
+    <string name="gateway_notification_open_official_alerts">Official alerts</string>
+    <string name="cellular_relay_section">Cellular uplink</string>
+    <string name="cellular_relay_url_hint">Relay base URL (https://host, empty = off)</string>
+    <string name="cellular_relay_token_hint">Relay auth token (optional)</string>
+    <string name="cellular_relay_hint">Optional: bridge to remote gateways over mobile data. Leave empty for LAN-only hub — a spare phone on home Wi‑Fi is enough for neighbors on the same network.</string>
+    <string name="cellular_relay_saved">Cellular relay settings saved</string>
+</resources>

@@ -1,11 +1,11 @@
 package com.meshhood
 
-import android.util.Base64
 import android.util.Log
 import org.bouncycastle.crypto.params.Ed25519PrivateKeyParameters
 import org.bouncycastle.crypto.params.Ed25519PublicKeyParameters
 import org.bouncycastle.crypto.signers.Ed25519Signer
 import java.security.SecureRandom
+import java.util.Base64
 
 /**
  * Ed25519 signing identity — the trust anchor for the reputation system.
@@ -36,7 +36,7 @@ object SignKeys {
     /** Our raw 32-byte public verify key, base64-encoded. */
     val myVerifyKeyB64: String? by lazy {
         try {
-            Base64.encodeToString(priv.generatePublicKey().encoded, Base64.NO_WRAP)
+            Base64.getEncoder().encodeToString(priv.generatePublicKey().encoded)
         } catch (t: Throwable) {
             Log.e(TAG, "verify key export failed", t); null
         }
@@ -49,7 +49,7 @@ object SignKeys {
             val signer = Ed25519Signer()
             signer.init(true, priv)
             signer.update(bytes, 0, bytes.size)
-            Base64.encodeToString(signer.generateSignature(), Base64.NO_WRAP)
+            Base64.getEncoder().encodeToString(signer.generateSignature())
         } catch (t: Throwable) {
             Log.e(TAG, "sign failed", t); null
         }
@@ -58,14 +58,14 @@ object SignKeys {
     /** Verify a base64 signature over [message] using a peer's raw verify key. */
     fun verify(message: String, signatureB64: String, peerVerifyKeyB64: String): Boolean {
         return try {
-            val raw = Base64.decode(peerVerifyKeyB64, Base64.NO_WRAP)
+            val raw = Base64.getDecoder().decode(peerVerifyKeyB64)
             if (raw.size != 32) return false
             val pub = Ed25519PublicKeyParameters(raw, 0)
             val bytes = message.toByteArray(Charsets.UTF_8)
             val signer = Ed25519Signer()
             signer.init(false, pub)
             signer.update(bytes, 0, bytes.size)
-            signer.verifySignature(Base64.decode(signatureB64, Base64.NO_WRAP))
+            signer.verifySignature(Base64.getDecoder().decode(signatureB64))
         } catch (t: Throwable) {
             Log.e(TAG, "verify failed", t); false
         }
