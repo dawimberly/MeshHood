@@ -24,3 +24,5 @@ tools/sim_identities/
 *.apk
 *.aab
 *.dex
+*.keystore
+*.jks

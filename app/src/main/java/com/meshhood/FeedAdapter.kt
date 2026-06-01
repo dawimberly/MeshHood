@@ -4,17 +4,13 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.TextView
+import androidx.recyclerview.widget.DiffUtil
+import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 
-class FeedAdapter : RecyclerView.Adapter<FeedAdapter.Holder>() {
+class FeedAdapter : ListAdapter<FeedLine, FeedAdapter.Holder>(DIFF) {
 
-    private var lines: List<FeedLine> = emptyList()
     var onLineLongClick: ((FeedLine) -> Boolean)? = null
-
-    fun submitList(next: List<FeedLine>) {
-        lines = next
-        notifyDataSetChanged()
-    }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): Holder {
         val view = LayoutInflater.from(parent.context)
@@ -23,14 +19,12 @@ class FeedAdapter : RecyclerView.Adapter<FeedAdapter.Holder>() {
     }
 
     override fun onBindViewHolder(holder: Holder, position: Int) {
-        val line = lines[position]
+        val line = getItem(position)
         holder.bind(line)
         holder.itemView.setOnLongClickListener {
             onLineLongClick?.invoke(line) ?: false
         }
     }
-
-    override fun getItemCount(): Int = lines.size
 
     class Holder(itemView: View) : RecyclerView.ViewHolder(itemView) {
         private val cardRoot: View = itemView.findViewById(R.id.feedCardRoot)
@@ -49,6 +43,18 @@ class FeedAdapter : RecyclerView.Adapter<FeedAdapter.Holder>() {
                 badgeText,
                 line,
             )
+        }
+    }
+
+    companion object {
+        private val DIFF = object : DiffUtil.ItemCallback<FeedLine>() {
+            override fun areItemsTheSame(oldItem: FeedLine, newItem: FeedLine): Boolean =
+                oldItem.time == newItem.time &&
+                    oldItem.sender == newItem.sender &&
+                    oldItem.kind == newItem.kind
+
+            override fun areContentsTheSame(oldItem: FeedLine, newItem: FeedLine): Boolean =
+                oldItem == newItem
         }
     }
 }

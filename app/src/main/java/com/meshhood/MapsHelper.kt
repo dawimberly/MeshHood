@@ -70,6 +70,27 @@ object MapsHelper {
         return lat to lon
     }
 
+    /**
+     * Opens Google Maps offline-area guidance when possible; otherwise the help page in a browser.
+     */
+    fun openOfflineMapsGuide(context: Context) {
+        val helpUri = Uri.parse("https://support.google.com/maps/answer/6291838")
+        val googleIntent = Intent(Intent.ACTION_VIEW, helpUri).apply {
+            setPackage(GOOGLE_MAPS_PACKAGE)
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        if (googleIntent.resolveActivity(context.packageManager) != null) {
+            context.startActivity(googleIntent)
+            return
+        }
+        val webIntent = Intent(Intent.ACTION_VIEW, helpUri).apply {
+            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+        }
+        if (webIntent.resolveActivity(context.packageManager) != null) {
+            context.startActivity(webIntent)
+        }
+    }
+
     /** Opens the user's default maps app (Google Maps, Samsung Maps, etc.). */
     fun openInMaps(context: Context, lat: Double, lon: Double, label: String = "") {
         val q = if (label.isNotEmpty()) {

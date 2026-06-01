@@ -40,6 +40,7 @@ Publishing from the gateway app on the **same phone** as the consumer app does *
 | **Network readiness** | Status strip shows Ready / Limited / Searching / Offline from mesh + transport state |
 | **Feed sort** | **Recent** (time) or **Nearby** (distance) on the Home feed |
 | **Google Maps handoff** | In-app map when keyed; **Open in Google Maps** for directions |
+| **Offline maps tip** | Nearby map card + menu **Offline maps guide** opens Google Maps offline-area help |
 | **Mutual location** | Pairwise consent for map pins; emergency always attaches live GPS |
 | **Agency alerts** | Ed25519-signed official messages via gateway; styled feed cards |
 | **Gateway headless** | Spare phone runs mesh hub on boot; UI always openable from icon or notification |

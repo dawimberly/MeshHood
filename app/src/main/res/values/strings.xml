@@ -174,6 +174,15 @@
     <string name="map_search_pharmacy">Pharmacy</string>
     <string name="map_pin_actions_title">%1$s</string>
     <string name="map_tile_hint">Google Maps tiles cache on device while you use the app. Download offline areas in Google Maps for navigation without data.</string>
+    <string name="menu_offline_maps_guide">Offline maps guide</string>
+    <string name="offline_maps_card_title">Download offline maps</string>
+    <string name="offline_maps_card_body">Before an outage, save your neighborhood in Google Maps so turn-by-turn works without cell data. MeshHood can still hand off to Maps when you tap a pin.</string>
+    <string name="offline_maps_card_action">Open offline maps help</string>
+    <string name="offline_maps_card_dismiss_cd">Dismiss offline maps tip</string>
+    <string name="map_marker_agency_snippet">Official alert</string>
+    <string name="map_marker_shelter_snippet">Shelter or evacuation</string>
+    <string name="map_marker_neighbor_snippet">Area message</string>
+    <string name="map_marker_emergency_snippet">Emergency</string>
     <string name="map_api_key_missing">Add MAPS_API_KEY to local.properties (Maps SDK for Android). You can still open Google Maps below.</string>
     <string name="map_auth_failed">Map tiles blocked by Google. In Cloud Console: enable Maps SDK for Android, then edit your API key -&gt; Android apps -&gt; package com.meshhood, SHA-1 E2:73:B3:70:AB:1B:89:DA:00:3B:76:76:99:30:E9:04:8E:CE:73:D2</string>
     <string name="map_peer_tap">Tap for directions in Maps</string>
@@ -200,6 +209,7 @@
 
     <!-- Common dialog actions -->
     <string name="action_send">Send</string>
+    <string name="action_save">Save</string>
     <string name="action_cancel">Cancel</string>
     <string name="action_close">Close</string>
     <string name="action_clear">Clear</string>
@@ -238,5 +248,91 @@
     <string name="feed_sort_recent">Recent</string>
     <string name="feed_sort_nearby">Nearby</string>
     <string name="feed_location_actions_title">Location</string>
+
+    <!-- Profile dialog -->
+    <string name="profile_name_hint">Your name or handle (required)</string>
+    <string name="profile_label_name">Name</string>
+    <string name="profile_label_blood_type">Blood type</string>
+    <string name="profile_blood_private_hint">Kept private on your phone - only shared when you send an emergency.</string>
+    <string name="profile_label_skills">Skills you can offer</string>
+    <string name="profile_shares_hint">e.g. generator, water jugs, truck, spare room</string>
+    <string name="profile_label_shares">Things you can share (comma separated)</string>
+    <string name="profile_certs_hint">e.g. RN license, CPR certified, licensed electrician</string>
+    <string name="profile_title_onboarding">Welcome to MeshHood - set up your profile</string>
+    <string name="profile_title_edit">Edit profile</string>
+    <string name="profile_name_required">Please enter a name or handle</string>
+    <string name="profile_saved">Profile saved</string>
+    <string name="profile_you_suffix">%1$s (you)</string>
+    <string name="profile_capacity_exempt">%1$s (vouched - exempt)</string>
+    <string name="profile_capacity_needs_vouches">%1$s (needs vouches)</string>
+    <string name="profile_capacity_full">Full capacity</string>
+    <string name="profile_capacity_line">Capacity: %1$s</string>
+    <string name="profile_skills_line">Skills: %1$s</string>
+    <string name="profile_shares_line">Can share: %1$s</string>
+    <string name="profile_certs_line">Certifications: %1$s</string>
+    <string name="profile_groups_line">Groups: %1$s</string>
+    <string name="profile_no_details">No profile details shared yet.</string>
+    <string name="profile_map_prefix">Map: %1$s</string>
+    <string name="profile_emergency_card_heading">Emergency Card</string>
+    <string name="profile_notes_line">Notes: %1$s</string>
+    <string name="profile_reciprocity_line">%1$s %2$s - helped %3$d, received %4$d</string>
+
+    <!-- Emergency card dialog -->
+    <string name="emergency_card_title">Emergency Card</string>
+    <string name="emergency_card_privacy_hint">Shared only when YOU send an emergency. Stored on your phone otherwise.</string>
+    <string name="emergency_card_label_allergies">Allergies</string>
+    <string name="emergency_card_label_medications">Medications</string>
+    <string name="emergency_card_label_conditions">Medical conditions</string>
+    <string name="emergency_card_label_contact_name">Emergency contact name</string>
+    <string name="emergency_card_label_contact_phone">Emergency contact phone</string>
+    <string name="emergency_card_label_notes">Other notes (mobility, language, etc.)</string>
+    <string name="emergency_card_hint_allergies">e.g. penicillin, peanuts</string>
+    <string name="emergency_card_hint_medications">e.g. insulin, blood thinners</string>
+    <string name="emergency_card_hint_conditions">e.g. diabetic, pacemaker, asthma</string>
+    <string name="emergency_card_hint_contact_name">e.g. Jane (wife)</string>
+    <string name="emergency_card_hint_contact_phone">e.g. 555-123-4567</string>
+    <string name="emergency_card_hint_notes">e.g. uses a wheelchair, speaks Spanish</string>
+    <string name="emergency_card_saved">Emergency Card saved</string>
+
+    <!-- Groups -->
+    <string name="group_create_title">Create a group</string>
+    <string name="group_create_message">You become the founder and first admin. Admins can verify credentials, pin announcements, and coordinate - but never censor speech.</string>
+    <string name="group_create_hint">e.g. Oak St Block, Building 4, Westside Mutual Aid</string>
+    <string name="group_create_button">Create</string>
+    <string name="group_name_required">Enter a group name</string>
+    <string name="group_created">Created \"%1$s\" - you\'re the admin</string>
+    <string name="group_none_yet">No groups yet - create one from the menu</string>
+    <string name="group_section_yours">- Your groups -</string>
+    <string name="group_section_join">- Join a group -</string>
+    <string name="group_list_entry">%1$s (%2$s, %3$d members)</string>
+    <string name="group_discover_entry">%1$s (%2$d members)</string>
+    <string name="group_role_admin">admin</string>
+    <string name="group_role_member">member</string>
+    <string name="group_role_you">you</string>
+    <string name="group_joined">Joined %1$s</string>
+    <string name="group_founder_line">Founder: %1$s</string>
+    <string name="group_members_line">Members (%1$d): %2$s</string>
+    <string name="group_member_tag">%1$s (%2$s)</string>
+    <string name="group_pinned_heading">Pinned</string>
+    <string name="group_pinned_item">- %1$s - %2$s</string>
+    <string name="group_verified_heading">Verified credentials</string>
+    <string name="group_verified_item">- %1$s - %2$s</string>
+    <string name="group_admin_button">Admin</string>
+    <string name="group_admin_title">Admin - %1$s</string>
+    <string name="group_admin_pin">Pin announcement</string>
+    <string name="group_admin_verify">Verify a credential</string>
+    <string name="group_admin_promote">Promote to admin</string>
+    <string name="group_pin_title">Pin announcement</string>
+    <string name="group_pin_hint">e.g. Sandbag pickup Saturday 9am at the clubhouse</string>
+    <string name="group_pin_button">Pin</string>
+    <string name="group_pinned_toast">Pinned to group</string>
+    <string name="group_no_members_verify">No other members to verify yet</string>
+    <string name="group_pick_member">Pick a member</string>
+    <string name="group_verify_cert_title">Verify which credential?</string>
+    <string name="group_verified_toast">Verified</string>
+    <string name="group_no_certs">%1$s has no certs on their profile</string>
+    <string name="group_promote_title">Promote to admin</string>
+    <string name="group_no_promote">No members to promote</string>
+    <string name="group_promoted">%1$s is now admin</string>
 </resources>
 

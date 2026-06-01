@@ -56,6 +56,8 @@
 
     <include layout="@layout/include_header_accent" />
 
+    <include layout="@layout/include_offline_maps_card" />
+
     <TextView
         android:id="@+id/mapStatusText"
         android:layout_width="match_parent"

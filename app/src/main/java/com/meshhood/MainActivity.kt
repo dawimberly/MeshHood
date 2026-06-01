@@ -586,6 +586,7 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
             getString(R.string.menu_my_capacity),
             getString(R.string.menu_set_area),
             getString(R.string.menu_map),
+            getString(R.string.menu_offline_maps_guide),
             getString(R.string.menu_edit_profile),
             getString(R.string.menu_emergency_card),
             getString(R.string.menu_vouch),
@@ -604,11 +605,12 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
                     6 -> onMyStatus()
                     7 -> showQuickAreaDialog()
                     8 -> onMap()
-                    9 -> showProfileDialog(onboarding = false)
-                    10 -> onEmergencyCard()
-                    11 -> onVouch()
-                    12 -> onVouchPhoto()
-                    13 -> onClearFeedRequested()
+                    9 -> MapsHelper.openOfflineMapsGuide(this)
+                    10 -> showProfileDialog(onboarding = false)
+                    11 -> onEmergencyCard()
+                    12 -> onVouch()
+                    13 -> onVouchPhoto()
+                    14 -> onClearFeedRequested()
                 }
             }
             .show()
@@ -868,7 +870,7 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         }
 
         val nameField = EditText(this).apply {
-            hint = "Your name or handle (required)"
+            hint = getString(R.string.profile_name_hint)
             setText(if (onboarding) "" else profile.name)
         }
 
@@ -977,7 +979,7 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
                 refreshDialogAvatar(s?.toString() ?: "")
             }
         })
-        container.addView(label("Name"))
+        container.addView(label(getString(R.string.profile_label_name)))
         container.addView(nameField)
 
         container.addView(label(getString(R.string.location_share_label)))
@@ -1051,19 +1053,19 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         // Blood type lives on the (private) Emergency Card, but we surface the
         // picker here too since people expect it during profile setup.
         val ice = service.getMyIce()
-        container.addView(label("Blood type"))
+        container.addView(label(getString(R.string.profile_label_blood_type)))
         val bloodSpinner = Spinner(this).apply {
             adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, bloodTypes)
             setSelection(bloodTypes.indexOf(ice.bloodType).coerceAtLeast(0))
         }
         container.addView(bloodSpinner)
         container.addView(TextView(this).apply {
-            text = "Kept private on your phone - only shared when you send an emergency."
+            text = getString(R.string.profile_blood_private_hint)
             textSize = 11f
             setPadding(0, dp(2), 0, 0)
         })
 
-        container.addView(label("Skills you can offer"))
+        container.addView(label(getString(R.string.profile_label_skills)))
         val skillBoxes = skillOptions.map { skill ->
             CheckBox(this).apply {
                 text = skill
@@ -1072,14 +1074,14 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         }
 
         val sharesField = EditText(this).apply {
-            hint = "e.g. generator, water jugs, truck, spare room"
+            hint = getString(R.string.profile_shares_hint)
             setText(profile.shares.joinToString(", "))
         }
-        container.addView(label("Things you can share (comma separated)"))
+        container.addView(label(getString(R.string.profile_label_shares)))
         container.addView(sharesField)
 
         val certsField = EditText(this).apply {
-            hint = "e.g. RN license, CPR certified, licensed electrician"
+            hint = getString(R.string.profile_certs_hint)
             setText(profile.certs.joinToString(", "))
         }
         container.addView(label(getString(R.string.toast_certs_note)))
@@ -1088,21 +1090,24 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         val scroll = ScrollView(this).apply { addView(container) }
 
         val builder = androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle(if (onboarding) "Welcome to MeshHood - set up your profile" else "Edit profile")
+            .setTitle(
+                if (onboarding) getString(R.string.profile_title_onboarding)
+                else getString(R.string.profile_title_edit),
+            )
             .setView(scroll)
-            .setPositiveButton("Save", null)
+            .setPositiveButton(R.string.action_save, null)
         if (onboarding) {
-            builder.setNegativeButton("Skip for now", null)
+            builder.setNegativeButton(R.string.quick_area_skip, null)
             builder.setCancelable(false)
         } else {
-            builder.setNegativeButton("Cancel", null)
+            builder.setNegativeButton(R.string.action_cancel, null)
         }
         val dialog = builder.create()
         dialog.setOnShowListener {
             dialog.getButton(androidx.appcompat.app.AlertDialog.BUTTON_POSITIVE).setOnClickListener {
                 val name = nameField.text.toString().trim()
                 if (name.isEmpty()) {
-                    Toast.makeText(this, "Please enter a name or handle", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, R.string.profile_name_required, Toast.LENGTH_SHORT).show()
                     return@setOnClickListener
                 }
                 val skills = skillBoxes.filter { it.isChecked }.map { it.text.toString() }
@@ -1121,7 +1126,7 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
                 // other fields untouched.
                 val bt = bloodTypes[bloodSpinner.selectedItemPosition].let { if (it == "Unknown") "" else it }
                 service.saveIce(service.getMyIce().copy(bloodType = bt))
-                Toast.makeText(this, "Profile saved", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, R.string.profile_saved, Toast.LENGTH_SHORT).show()
                 refreshAvatar()
                 dialog.dismiss()
             }
@@ -1187,16 +1192,37 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         val p = service.profileOf(name)
         val r = service.reciprocityOf(name)
         val cap = service.capacityOf(name)
+        val capLabel = when (cap) {
+            MeshService.CAP_HOMEBOUND -> getString(R.string.capacity_label_homebound)
+            MeshService.CAP_LIMITED -> getString(R.string.capacity_label_limited)
+            else -> getString(R.string.profile_capacity_full)
+        }
         val capLine = when {
-            service.isExempt(name) -> "${if (cap == MeshService.CAP_HOMEBOUND) "Homebound" else "Limited"} (vouched - exempt)"
-            service.isUnverifiedClaim(name) -> "${if (cap == MeshService.CAP_HOMEBOUND) "Homebound" else "Limited"} (needs vouches)"
-            else -> "Full capacity"
+            service.isExempt(name) -> getString(R.string.profile_capacity_exempt, capLabel)
+            service.isUnverifiedClaim(name) -> getString(R.string.profile_capacity_needs_vouches, capLabel)
+            else -> getString(R.string.profile_capacity_full)
         }
         val sb = StringBuilder()
-        sb.append("${r.glyph} ${r.label} - helped ${r.given}, received ${r.received}\n")
-        sb.append("Capacity: $capLine\n\n")
-        if (p != null && p.skills.isNotEmpty()) sb.append("Skills: ${p.skills.joinToString(", ")}\n")
-        if (p != null && p.shares.isNotEmpty()) sb.append("Can share: ${p.shares.joinToString(", ")}\n")
+        sb.append(
+            getString(
+                R.string.profile_reciprocity_line,
+                r.glyph,
+                r.label,
+                r.given,
+                r.received,
+            ),
+        )
+        sb.append("\n")
+        sb.append(getString(R.string.profile_capacity_line, capLine))
+        sb.append("\n\n")
+        if (p != null && p.skills.isNotEmpty()) {
+            sb.append(getString(R.string.profile_skills_line, p.skills.joinToString(", ")))
+            sb.append("\n")
+        }
+        if (p != null && p.shares.isNotEmpty()) {
+            sb.append(getString(R.string.profile_shares_line, p.shares.joinToString(", ")))
+            sb.append("\n")
+        }
         if (p != null && p.certs.isNotEmpty()) {
             val verified = service.myGroups().flatMap { g ->
                 service.verifiedCertsIn(g.id, name).map { g.name to it }
@@ -1205,22 +1231,30 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
                 val badge = verified.find { it.second == cert }?.let { " (${it.first})" } ?: ""
                 "$cert$badge"
             }
-            sb.append("Certifications: ${certLines.joinToString(", ")}\n")
+            sb.append(getString(R.string.profile_certs_line, certLines.joinToString(", ")))
+            sb.append("\n")
         }
         val memberships = service.groupsFor(name)
         if (memberships.isNotEmpty()) {
-            sb.append("Groups: ${memberships.joinToString(", ") { it.name }}\n")
+            sb.append(getString(R.string.profile_groups_line, memberships.joinToString(", ") { it.name }))
+            sb.append("\n")
         }
         if (p == null || (p.skills.isEmpty() && p.shares.isEmpty() && p.certs.isEmpty())) {
-            if (memberships.isEmpty()) sb.append("No profile details shared yet.")
+            if (memberships.isEmpty()) sb.append(getString(R.string.profile_no_details))
         }
-        sb.append("\n\nMap: ${locationStatusLine(service, name)}")
+        sb.append("\n\n")
+        sb.append(getString(R.string.profile_map_prefix, locationStatusLine(service, name)))
         val peerLoc = service.peerLocationOf(name)
         val ice = service.iceOf(name)
         if (ice != null && !ice.isBlank()) {
-            sb.append("\n\nEmergency Card\n")
+            sb.append("\n\n")
+            sb.append(getString(R.string.profile_emergency_card_heading))
+            sb.append("\n")
             sb.append(service.iceSummary(ice))
-            if (ice.notes.isNotBlank()) sb.append("\nNotes: ${ice.notes}")
+            if (ice.notes.isNotBlank()) {
+                sb.append("\n")
+                sb.append(getString(R.string.profile_notes_line, ice.notes))
+            }
         }
         val header = layoutInflater.inflate(R.layout.profile_detail_header, null)
         AvatarBinder.bind(
@@ -1232,7 +1266,7 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
             header.findViewById(R.id.detailVerifiedBadge),
         )
         header.findViewById<TextView>(R.id.detailNameText).text =
-            if (name == service.myName) "$name (you)" else name
+            if (name == service.myName) getString(R.string.profile_you_suffix, name) else name
         header.findViewById<TextView>(R.id.detailPhotoStatusText).text = photoStatusLine(service, name)
         val body = TextView(this).apply {
             text = sb.toString().trim()
@@ -1248,7 +1282,7 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         }
         val builder = androidx.appcompat.app.AlertDialog.Builder(this)
             .setView(scroll)
-            .setPositiveButton("Close", null)
+            .setPositiveButton(R.string.action_close, null)
         if (name != service.myName) {
             when {
                 service.hasIncomingLocationOffer(name) -> {
@@ -1272,14 +1306,14 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
                             }
                         }
                         service.isMutualLocationWith(name) -> {
-                            builder.setNeutralButton("Thank") { _, _ -> service.thank(name) }
+                            builder.setNeutralButton(R.string.action_thank) { _, _ -> service.thank(name) }
                             builder.setNegativeButton(getString(R.string.loc_action_revoke)) { _, _ ->
                                 service.revokeMutualLocation(name)
                                 Toast.makeText(this, getString(R.string.loc_revoked, name), Toast.LENGTH_SHORT).show()
                             }
                         }
                         else -> {
-                            builder.setNeutralButton("Thank") { _, _ -> service.thank(name) }
+                            builder.setNeutralButton(R.string.action_thank) { _, _ -> service.thank(name) }
                             if (!service.hasOutgoingLocationOffer(name)) {
                                 builder.setNegativeButton(getString(R.string.loc_action_request)) { _, _ ->
                                     service.requestMutualLocation(name)
@@ -1317,23 +1351,23 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
     private fun onCreateGroup() {
         val service = meshService ?: return
         val input = EditText(this).apply {
-            hint = "e.g. Oak St Block, Building 4, Westside Mutual Aid"
+            hint = getString(R.string.group_create_hint)
         }
         androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("Create a group")
-            .setMessage("You become the founder and first admin. Admins can verify credentials, pin announcements, and coordinate - but never censor speech.")
+            .setTitle(R.string.group_create_title)
+            .setMessage(R.string.group_create_message)
             .setView(input)
-            .setPositiveButton("Create") { _, _ ->
+            .setPositiveButton(R.string.group_create_button) { _, _ ->
                 val name = input.text.toString().trim()
                 if (name.isEmpty()) {
-                    Toast.makeText(this, "Enter a group name", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, R.string.group_name_required, Toast.LENGTH_SHORT).show()
                 } else {
                     service.createGroup(name)
-                    Toast.makeText(this, "Created \"$name\" - you're the admin", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, getString(R.string.group_created, name), Toast.LENGTH_SHORT).show()
                     refreshUi()
                 }
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton(R.string.action_cancel, null)
             .show()
     }
 
@@ -1342,25 +1376,29 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         val mine = service.myGroups()
         val discover = service.allKnownGroups().filter { g -> g.id !in mine.map { it.id } }
         if (mine.isEmpty() && discover.isEmpty()) {
-            Toast.makeText(this, "No groups yet - create one from the menu", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, R.string.group_none_yet, Toast.LENGTH_SHORT).show()
             return
         }
         val labels = mutableListOf<String>()
         val ids = mutableListOf<String?>()
         if (mine.isNotEmpty()) {
-            labels.add("- Your groups -")
+            labels.add(getString(R.string.group_section_yours))
             ids.add(null)
             for (g in mine) {
-                val role = if (service.isGroupAdmin(g.id)) "admin" else "member"
-                labels.add("${g.name} ($role, ${g.members.size} members)")
+                val role = if (service.isGroupAdmin(g.id)) {
+                    getString(R.string.group_role_admin)
+                } else {
+                    getString(R.string.group_role_member)
+                }
+                labels.add(getString(R.string.group_list_entry, g.name, role, g.members.size))
                 ids.add(g.id)
             }
         }
         if (discover.isNotEmpty()) {
-            labels.add("- Join a group -")
+            labels.add(getString(R.string.group_section_join))
             ids.add(null)
             for (g in discover) {
-                labels.add("${g.name} (${g.members.size} members)")
+                labels.add(getString(R.string.group_discover_entry, g.name, g.members.size))
                 ids.add(g.id)
             }
         }
@@ -1373,11 +1411,15 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
                     service.joinGroup(gid)
                     service.setFeedScope(gid)
                     syncRecipientToFeedScope()
-                    Toast.makeText(this, "Joined ${service.groupOf(gid)?.name}", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(
+                        this,
+                        getString(R.string.group_joined, service.groupOf(gid)?.name ?: ""),
+                        Toast.LENGTH_SHORT,
+                    ).show()
                     refreshUi()
                 }
             }
-            .setPositiveButton("Close", null)
+            .setPositiveButton(R.string.action_close, null)
             .show()
     }
 
@@ -1385,32 +1427,41 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         val service = meshService ?: return
         val g = service.groupOf(gid) ?: return
         val sb = StringBuilder()
-        sb.append("Founder: ${g.founder}\n")
-        sb.append("Members (${g.members.size}): ")
-        sb.append(g.members.joinToString(", ") { m ->
+        sb.append(getString(R.string.group_founder_line, g.founder))
+        sb.append("\n")
+        val memberLine = g.members.joinToString(", ") { m ->
             val tags = mutableListOf<String>()
-            if (m in g.admins) tags.add("admin")
-            if (m == service.myName) tags.add("you")
-            if (tags.isEmpty()) m else "$m (${tags.joinToString(", ")})"
-        })
+            if (m in g.admins) tags.add(getString(R.string.group_role_admin))
+            if (m == service.myName) tags.add(getString(R.string.group_role_you))
+            if (tags.isEmpty()) m else getString(R.string.group_member_tag, m, tags.joinToString(", "))
+        }
+        sb.append(getString(R.string.group_members_line, g.members.size, memberLine))
         sb.append("\n\n")
         val pins = service.pinsForGroup(gid)
         if (pins.isNotEmpty()) {
-            sb.append("Pinned\n")
-            for (p in pins.take(5)) sb.append("- ${p.text} - ${p.admin}\n")
+            sb.append(getString(R.string.group_pinned_heading))
+            sb.append("\n")
+            for (p in pins.take(5)) {
+                sb.append(getString(R.string.group_pinned_item, p.text, p.admin))
+                sb.append("\n")
+            }
             sb.append("\n")
         }
         val verified = service.verifiedSummaryForGroup(gid)
         if (verified.isNotEmpty()) {
-            sb.append("Verified credentials\n")
-            verified.forEach { (subject, cert) -> sb.append("- $subject - $cert\n") }
+            sb.append(getString(R.string.group_verified_heading))
+            sb.append("\n")
+            verified.forEach { (subject, cert) ->
+                sb.append(getString(R.string.group_verified_item, subject, cert))
+                sb.append("\n")
+            }
         }
         val builder = androidx.appcompat.app.AlertDialog.Builder(this)
             .setTitle(g.name)
             .setMessage(sb.toString().trim())
-            .setPositiveButton("Close", null)
+            .setPositiveButton(R.string.action_close, null)
         if (service.isGroupAdmin(gid)) {
-            builder.setNeutralButton("Admin") { _, _ -> showGroupAdminMenu(gid) }
+            builder.setNeutralButton(R.string.group_admin_button) { _, _ -> showGroupAdminMenu(gid) }
         }
         builder.show()
     }
@@ -1419,12 +1470,12 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         val service = meshService ?: return
         val g = service.groupOf(gid) ?: return
         val options = arrayOf(
-            "Pin announcement",
-            "Verify a credential",
-            "Promote to admin"
+            getString(R.string.group_admin_pin),
+            getString(R.string.group_admin_verify),
+            getString(R.string.group_admin_promote),
         )
         androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("Admin - ${g.name}")
+            .setTitle(getString(R.string.group_admin_title, g.name))
             .setItems(options) { _, which ->
                 when (which) {
                     0 -> onPinAnnouncement(gid)
@@ -1438,19 +1489,19 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
     private fun onPinAnnouncement(gid: String) {
         val service = meshService ?: return
         val input = EditText(this).apply {
-            hint = "e.g. Sandbag pickup Saturday 9am at the clubhouse"
+            hint = getString(R.string.group_pin_hint)
         }
         androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("Pin announcement")
+            .setTitle(R.string.group_pin_title)
             .setView(input)
-            .setPositiveButton("Pin") { _, _ ->
+            .setPositiveButton(R.string.group_pin_button) { _, _ ->
                 val text = input.text.toString().trim()
                 if (text.isNotEmpty()) {
                     service.pinGroupAnnouncement(gid, text)
-                    Toast.makeText(this, "Pinned to group", Toast.LENGTH_SHORT).show()
+                    Toast.makeText(this, R.string.group_pinned_toast, Toast.LENGTH_SHORT).show()
                 }
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton(R.string.action_cancel, null)
             .show()
     }
 
@@ -1458,11 +1509,11 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         val service = meshService ?: return
         val members = service.groupOf(gid)?.members?.filter { it != service.myName } ?: emptyList()
         if (members.isEmpty()) {
-            Toast.makeText(this, "No other members to verify yet", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, R.string.group_no_members_verify, Toast.LENGTH_SHORT).show()
             return
         }
         androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("Pick a member")
+            .setTitle(R.string.group_pick_member)
             .setItems(members.toTypedArray()) { _, which -> pickCertToVerify(gid, members[which]) }
             .show()
     }
@@ -1472,14 +1523,14 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         val profile = service.profileOf(subject)
         val certs = profile?.certs?.filter { it.isNotBlank() } ?: emptyList()
         if (certs.isEmpty()) {
-            Toast.makeText(this, "$subject has no certs on their profile", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, getString(R.string.group_no_certs, subject), Toast.LENGTH_SHORT).show()
             return
         }
         androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("Verify which credential?")
+            .setTitle(R.string.group_verify_cert_title)
             .setItems(certs.toTypedArray()) { _, which ->
                 service.verifyCertInGroup(gid, subject, certs[which])
-                Toast.makeText(this, "Verified", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, R.string.group_verified_toast, Toast.LENGTH_SHORT).show()
             }
             .show()
     }
@@ -1489,14 +1540,18 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         val g = service.groupOf(gid) ?: return
         val candidates = g.members.filter { it != service.myName && it !in g.admins }
         if (candidates.isEmpty()) {
-            Toast.makeText(this, "No members to promote", Toast.LENGTH_SHORT).show()
+            Toast.makeText(this, R.string.group_no_promote, Toast.LENGTH_SHORT).show()
             return
         }
         androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("Promote to admin")
+            .setTitle(R.string.group_promote_title)
             .setItems(candidates.toTypedArray()) { _, which ->
                 service.promoteGroupAdmin(gid, candidates[which])
-                Toast.makeText(this, "${candidates[which]} is now admin", Toast.LENGTH_SHORT).show()
+                Toast.makeText(
+                    this,
+                    getString(R.string.group_promoted, candidates[which]),
+                    Toast.LENGTH_SHORT,
+                ).show()
             }
             .show()
     }
@@ -1522,36 +1577,41 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
         }
 
         container.addView(TextView(this).apply {
-            text = "Shared only when YOU send an emergency. Stored on your phone otherwise."
+            text = getString(R.string.emergency_card_privacy_hint)
             textSize = 12f
             setPadding(0, 0, 0, dp(8))
         })
 
-        container.addView(label("Blood type"))
+        container.addView(label(getString(R.string.profile_label_blood_type)))
         val bloodSpinner = Spinner(this).apply {
             adapter = ArrayAdapter(this@MainActivity, android.R.layout.simple_spinner_dropdown_item, bloodTypes)
             setSelection(bloodTypes.indexOf(ice.bloodType).coerceAtLeast(0))
         }
         container.addView(bloodSpinner)
 
-        container.addView(label("Allergies"))
-        val allergies = field("e.g. penicillin, peanuts", ice.allergies).also { container.addView(it) }
-        container.addView(label("Medications"))
-        val meds = field("e.g. insulin, blood thinners", ice.medications).also { container.addView(it) }
-        container.addView(label("Medical conditions"))
-        val conditions = field("e.g. diabetic, pacemaker, asthma", ice.conditions).also { container.addView(it) }
-        container.addView(label("Emergency contact name"))
-        val contactName = field("e.g. Jane (wife)", ice.contactName).also { container.addView(it) }
-        container.addView(label("Emergency contact phone"))
-        val contactPhone = field("e.g. 555-123-4567", ice.contactPhone).also { container.addView(it) }
-        container.addView(label("Other notes (mobility, language, etc.)"))
-        val notes = field("e.g. uses a wheelchair, speaks Spanish", ice.notes).also { container.addView(it) }
+        container.addView(label(getString(R.string.emergency_card_label_allergies)))
+        val allergies = field(getString(R.string.emergency_card_hint_allergies), ice.allergies)
+            .also { container.addView(it) }
+        container.addView(label(getString(R.string.emergency_card_label_medications)))
+        val meds = field(getString(R.string.emergency_card_hint_medications), ice.medications)
+            .also { container.addView(it) }
+        container.addView(label(getString(R.string.emergency_card_label_conditions)))
+        val conditions = field(getString(R.string.emergency_card_hint_conditions), ice.conditions)
+            .also { container.addView(it) }
+        container.addView(label(getString(R.string.emergency_card_label_contact_name)))
+        val contactName = field(getString(R.string.emergency_card_hint_contact_name), ice.contactName)
+            .also { container.addView(it) }
+        container.addView(label(getString(R.string.emergency_card_label_contact_phone)))
+        val contactPhone = field(getString(R.string.emergency_card_hint_contact_phone), ice.contactPhone)
+            .also { container.addView(it) }
+        container.addView(label(getString(R.string.emergency_card_label_notes)))
+        val notes = field(getString(R.string.emergency_card_hint_notes), ice.notes).also { container.addView(it) }
 
         val scroll = ScrollView(this).apply { addView(container) }
         androidx.appcompat.app.AlertDialog.Builder(this)
-            .setTitle("Emergency Card")
+            .setTitle(R.string.emergency_card_title)
             .setView(scroll)
-            .setPositiveButton("Save") { _, _ ->
+            .setPositiveButton(R.string.action_save) { _, _ ->
                 val bt = bloodTypes[bloodSpinner.selectedItemPosition].let { if (it == "Unknown") "" else it }
                 service.saveIce(
                     MeshService.Ice(
@@ -1564,9 +1624,9 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
                         notes = notes.text.toString().trim()
                     )
                 )
-                Toast.makeText(this, "Emergency Card saved", Toast.LENGTH_SHORT).show()
+                Toast.makeText(this, R.string.emergency_card_saved, Toast.LENGTH_SHORT).show()
             }
-            .setNegativeButton("Cancel", null)
+            .setNegativeButton(R.string.action_cancel, null)
             .show()
     }
 
