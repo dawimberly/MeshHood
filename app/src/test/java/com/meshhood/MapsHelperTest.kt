@@ -27,11 +27,11 @@ class MapsHelperTest {
     }
 
     @Test
-    fun offlineMapsCenterUri_centersAtGoletaWithCityZoom() {
-        val uri = MapsHelper.offlineMapsCenterUri(34.4358, -119.8276)
-        assertTrue(uri.toString().contains("map_action=map"))
-        assertTrue(uri.toString().contains("center=34.4358,-119.8276"))
-        assertTrue(uri.toString().contains("zoom=14"))
-        assertTrue(uri.toString().contains("api=1"))
+    fun offlineMapsCenterUrl_centersAtGoletaWithCityZoom() {
+        val url = MapsHelper.offlineMapsCenterUrl(34.4358, -119.8276)
+        assertTrue(url.contains("map_action=map"))
+        assertTrue(url.contains("center=34.4358,-119.8276"))
+        assertTrue(url.contains("zoom=14"))
+        assertTrue(url.contains("api=1"))
     }
 }

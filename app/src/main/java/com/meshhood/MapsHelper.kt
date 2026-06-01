@@ -108,18 +108,16 @@ object MapsHelper {
         }
         val latVal = lat!!
         val lonVal = lon!!
-        val uri = offlineMapsCenterUri(latVal, lonVal)
+        val uri = Uri.parse(offlineMapsCenterUrl(latVal, lonVal))
         launchMapsIntent(context, Intent(Intent.ACTION_VIEW, uri))
         Toast.makeText(context, R.string.offline_maps_open_toast, Toast.LENGTH_LONG).show()
         return true
     }
 
     /** Maps URL that centers the viewport on a point at neighborhood/city zoom. */
-    internal fun offlineMapsCenterUri(lat: Double, lon: Double, zoom: Int = OFFLINE_MAPS_ZOOM): Uri =
-        Uri.parse(
-            "https://www.google.com/maps/@?api=1&map_action=map" +
-                "&center=$lat,$lon&zoom=$zoom",
-        )
+    internal fun offlineMapsCenterUrl(lat: Double, lon: Double, zoom: Int = OFFLINE_MAPS_ZOOM): String =
+        "https://www.google.com/maps/@?api=1&map_action=map" +
+            "&center=$lat,$lon&zoom=$zoom"
 
     /** Opens the user's default maps app (Google Maps, Samsung Maps, etc.). */
     fun openInMaps(context: Context, lat: Double, lon: Double, label: String = "") {
