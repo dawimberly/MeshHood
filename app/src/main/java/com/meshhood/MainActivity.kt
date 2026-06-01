@@ -605,7 +605,10 @@ class MainActivity : AppCompatActivity(), MeshService.MeshCallback {
                     6 -> onMyStatus()
                     7 -> showQuickAreaDialog()
                     8 -> onMap()
-                    9 -> MapsHelper.openOfflineMapsGuide(this)
+                    9 -> {
+                        val snap = meshService?.myLocationSnapshot()?.takeIf { it.hasCoords() }
+                        MapsHelper.openOfflineMapsGuide(this, snap?.lat, snap?.lon)
+                    }
                     10 -> showProfileDialog(onboarding = false)
                     11 -> onEmergencyCard()
                     12 -> onVouch()

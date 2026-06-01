@@ -179,6 +179,7 @@
     <string name="offline_maps_card_body">This card is for saving map tiles in the Google Maps app before an outage. MeshHood already shows live mesh pins and nearby emergency facilities on the map above — offline download is an extra step in Google Maps for turn-by-turn without cell data.</string>
     <string name="offline_maps_card_action">Open offline maps help</string>
     <string name="offline_maps_card_dismiss_cd">Dismiss offline maps tip</string>
+    <string name="offline_maps_open_toast">In Google Maps: Profile → Offline maps → Select your own map to download this area.</string>
     <string name="map_marker_agency_snippet">Official alert</string>
     <string name="map_marker_shelter_snippet">Shelter or evacuation</string>
     <string name="map_marker_neighbor_snippet">Area message</string>

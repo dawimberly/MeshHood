@@ -107,7 +107,8 @@ class MapActivity : AppCompatActivity(), MeshService.MeshCallback, OnMapReadyCal
             prefs.edit().putBoolean(KEY_OFFLINE_CARD_DISMISSED, true).apply()
         }
         findViewById<MaterialButton>(R.id.offlineMapsCardAction).setOnClickListener {
-            MapsHelper.openOfflineMapsGuide(this)
+            val anchor = userLocationAnchor()
+            MapsHelper.openOfflineMapsGuide(this, anchor?.first, anchor?.second)
         }
     }
 
@@ -513,8 +514,8 @@ class MapActivity : AppCompatActivity(), MeshService.MeshCallback, OnMapReadyCal
         private const val PREFS_MAP = "map_prefs"
         private const val KEY_OFFLINE_CARD_DISMISSED = "offline_maps_card_dismissed"
 
-        fun openOfflineMapsGuide(context: Context) {
-            MapsHelper.openOfflineMapsGuide(context)
+        fun openOfflineMapsGuide(context: Context, lat: Double?, lon: Double?) {
+            MapsHelper.openOfflineMapsGuide(context, lat, lon)
         }
     }
 }

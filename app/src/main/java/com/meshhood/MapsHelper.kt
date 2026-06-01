@@ -88,26 +88,38 @@ object MapsHelper {
         return lat to lon
     }
 
+    /** City/neighborhood zoom when opening Google Maps for offline download. */
+    private const val OFFLINE_MAPS_ZOOM = 14
+
     /**
-     * Opens Google Maps offline-area guidance when possible; otherwise the help page in a browser.
+     * Opens Google Maps centered on [lat],[lon] so the user can download offline tiles for their
+     * area. Requires valid GPS — never opens a zoomed-out default view at (0,0) or without coords.
+     * Returns false when location is missing (caller may rely on the toast).
      */
-    fun openOfflineMapsGuide(context: Context) {
-        val helpUri = Uri.parse("https://support.google.com/maps/answer/6291838")
-        val googleIntent = Intent(Intent.ACTION_VIEW, helpUri).apply {
-            setPackage(GOOGLE_MAPS_PACKAGE)
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+    fun openOfflineMapsGuide(
+        context: Context,
+        lat: Double?,
+        lon: Double?,
+        noLocationMessage: Int = R.string.map_turn_on_location,
+    ): Boolean {
+        if (!hasUsableCoords(lat, lon)) {
+            Toast.makeText(context, noLocationMessage, Toast.LENGTH_SHORT).show()
+            return false
         }
-        if (googleIntent.resolveActivity(context.packageManager) != null) {
-            context.startActivity(googleIntent)
-            return
-        }
-        val webIntent = Intent(Intent.ACTION_VIEW, helpUri).apply {
-            addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-        }
-        if (webIntent.resolveActivity(context.packageManager) != null) {
-            context.startActivity(webIntent)
-        }
+        val latVal = lat!!
+        val lonVal = lon!!
+        val uri = offlineMapsCenterUri(latVal, lonVal)
+        launchMapsIntent(context, Intent(Intent.ACTION_VIEW, uri))
+        Toast.makeText(context, R.string.offline_maps_open_toast, Toast.LENGTH_LONG).show()
+        return true
     }
+
+    /** Maps URL that centers the viewport on a point at neighborhood/city zoom. */
+    internal fun offlineMapsCenterUri(lat: Double, lon: Double, zoom: Int = OFFLINE_MAPS_ZOOM): Uri =
+        Uri.parse(
+            "https://www.google.com/maps/@?api=1&map_action=map" +
+                "&center=$lat,$lon&zoom=$zoom",
+        )
 
     /** Opens the user's default maps app (Google Maps, Samsung Maps, etc.). */
     fun openInMaps(context: Context, lat: Double, lon: Double, label: String = "") {

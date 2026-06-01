@@ -25,4 +25,13 @@ class MapsHelperTest {
         assertTrue(parsed!!.first in 34.0..35.0)
         assertTrue(parsed.second < -119.0)
     }
+
+    @Test
+    fun offlineMapsCenterUri_centersAtGoletaWithCityZoom() {
+        val uri = MapsHelper.offlineMapsCenterUri(34.4358, -119.8276)
+        assertTrue(uri.toString().contains("map_action=map"))
+        assertTrue(uri.toString().contains("center=34.4358,-119.8276"))
+        assertTrue(uri.toString().contains("zoom=14"))
+        assertTrue(uri.toString().contains("api=1"))
+    }
 }
