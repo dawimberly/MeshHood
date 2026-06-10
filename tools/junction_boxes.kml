@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<kml xmlns="http://www.opengis.net/kml/2.2">
+  <Document>
+    <name>MeshHood SB County Junction Boxes</name>
+    <description>Strategic LoRa relay sites for Santa Barbara County mesh deployment.</description>
+    <Placemark>
+      <name>Goleta urban gateway</name>
+      <description>Primary urban LoRa gateway — UCSB/Goleta mesh entry point. Tier: urban. Status: active.</description>
+      <Point><coordinates>-119.8276,34.4358,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Santa Barbara urban</name>
+      <description>Downtown / high-vantage urban relay. Tier: urban. Status: planned.</description>
+      <Point><coordinates>-119.6982,34.4208,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>La Cumbre / Camino Cielo ridge west</name>
+      <description>Ridge backbone west — La Cumbre Peak area. Tier: ridge. Status: planned.</description>
+      <Point><coordinates>-119.72,34.471,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Camino Cielo ridge east / Gibraltar</name>
+      <description>Ridge backbone east — Gibraltar Rock area. Tier: ridge. Status: planned.</description>
+      <Point><coordinates>-119.682,34.504,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Inspiration Point trailhead</name>
+      <description>Front-country trailhead relay. Tier: trailhead. Status: planned.</description>
+      <Point><coordinates>-119.687,34.458,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Cold Spring trailhead</name>
+      <description>Montecito foothill trailhead relay. Tier: trailhead. Status: planned.</description>
+      <Point><coordinates>-119.715,34.457,0</coordinates></Point>
+    </Placemark>
+    <Placemark>
+      <name>Gaviota Pass / Refugio corridor</name>
+      <description>West county pass relay. Tier: ridge. Status: planned.</description>
+      <Point><coordinates>-120.09,34.472,0</coordinates></Point>
+    </Placemark>
+  </Document>
+</kml>

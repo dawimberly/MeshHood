@@ -8,6 +8,7 @@ import android.content.ServiceConnection
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Canvas
+import android.graphics.PorterDuff
 import android.os.Bundle
 import android.os.IBinder
 import android.view.View
@@ -17,6 +18,7 @@ import android.widget.Toast
 import androidx.appcompat.app.AlertDialog
 import androidx.appcompat.app.AppCompatActivity
 import androidx.core.content.ContextCompat
+import androidx.core.graphics.drawable.DrawableCompat
 import com.google.android.gms.maps.CameraUpdateFactory
 import com.google.android.gms.maps.GoogleMap
 import com.google.android.gms.maps.OnMapReadyCallback
@@ -40,12 +42,17 @@ class MapActivity : AppCompatActivity(), MeshService.MeshCallback, OnMapReadyCal
     private lateinit var statusText: TextView
     private lateinit var searchNearbyButton: MaterialButton
     private lateinit var openSystemMapsButton: MaterialButton
+    private lateinit var junctionBoxesChip: MaterialButton
+    private lateinit var nearestJunctionButton: MaterialButton
     private lateinit var mapSetupHint: TextView
     private lateinit var offlineMapsCard: MaterialCardView
     private val peerMarkers = mutableMapOf<String, Marker>()
     private val feedMarkers = mutableMapOf<String, Marker>()
     private val emergencyMarkers = mutableMapOf<String, Marker>()
+    private val junctionBoxMarkers = mutableMapOf<String, Marker>()
     private var emergencyFacilityIcon: BitmapDescriptor? = null
+    private val junctionBoxIcons = mutableMapOf<JunctionBoxStore.Tier, BitmapDescriptor>()
+    private var highlightedJunctionId: String? = null
     private var emergencyFetchInFlight = false
     private var lastEmergencyAnchor: Pair<Double, Double>? = null
 
@@ -72,8 +79,13 @@ class MapActivity : AppCompatActivity(), MeshService.MeshCallback, OnMapReadyCal
         statusText = findViewById(R.id.mapStatusText)
         searchNearbyButton = findViewById(R.id.searchNearbyButton)
         openSystemMapsButton = findViewById(R.id.openSystemMapsButton)
+        junctionBoxesChip = findViewById(R.id.junctionBoxesChip)
+        nearestJunctionButton = findViewById(R.id.nearestJunctionButton)
         mapSetupHint = findViewById(R.id.mapSetupHint)
         offlineMapsCard = findViewById(R.id.offlineMapsCard)
+
+        JunctionBoxStore.load(this)
+        updateJunctionChip()
 
         findViewById<ImageButton>(R.id.mapBackButton).setOnClickListener { finish() }
 
@@ -93,6 +105,8 @@ class MapActivity : AppCompatActivity(), MeshService.MeshCallback, OnMapReadyCal
 
         searchNearbyButton.setOnClickListener { showSearchNearbyMenu() }
         openSystemMapsButton.setOnClickListener { showSelfPinActions() }
+        junctionBoxesChip.setOnClickListener { showJunctionLegend() }
+        nearestJunctionButton.setOnClickListener { showNearestJunction() }
 
         bindService(Intent(this, MeshService::class.java), connection, Context.BIND_AUTO_CREATE)
     }
@@ -126,6 +140,7 @@ class MapActivity : AppCompatActivity(), MeshService.MeshCallback, OnMapReadyCal
 
         map.setOnMarkerClickListener { marker ->
             when (val tag = marker.tag) {
+                is JunctionBoxTag -> showJunctionBoxActions(tag.box)
                 is EmergencyFacilityTag -> showEmergencyFacilityActions(tag.facility)
                 is FeedMarkerTag -> {
                     val label = marker.title ?: getString(R.string.map_title)
@@ -174,6 +189,7 @@ class MapActivity : AppCompatActivity(), MeshService.MeshCallback, OnMapReadyCal
         refreshPeerMarkers(map, service)
         refreshFeedMarkers(map, service)
         refreshEmergencyFacilityMarkers(map)
+        refreshJunctionBoxMarkers(map)
 
         val self = service.myLocationSnapshot()
         val peers = service.peersWithLocation()
@@ -298,6 +314,150 @@ class MapActivity : AppCompatActivity(), MeshService.MeshCallback, OnMapReadyCal
         val service = meshService ?: return null
         service.myLocationSnapshot()?.takeIf { it.hasCoords() }?.let { return it.lat to it.lon }
         return null
+    }
+
+    private fun updateJunctionChip() {
+        junctionBoxesChip.text = getString(R.string.map_junction_chip, JunctionBoxStore.count())
+    }
+
+    private fun refreshJunctionBoxMarkers(map: GoogleMap) {
+        val boxes = JunctionBoxStore.all()
+        val activeIds = mutableSetOf<String>()
+        val anchor = userLocationAnchor()
+        for (box in boxes) {
+            activeIds.add(box.id)
+            val position = LatLng(box.lat, box.lon)
+            val snippet = junctionBoxSnippet(box, anchor)
+            val zIndex = if (box.id == highlightedJunctionId) 3f else 2f
+            val existing = junctionBoxMarkers[box.id]
+            if (existing != null) {
+                existing.position = position
+                existing.title = box.name
+                existing.snippet = snippet
+                existing.tag = JunctionBoxTag(box)
+                existing.zIndex = zIndex
+            } else {
+                val marker = map.addMarker(
+                    MarkerOptions()
+                        .position(position)
+                        .title(box.name)
+                        .snippet(snippet)
+                        .icon(junctionBoxMarkerIcon(box.tier))
+                        .zIndex(zIndex),
+                ) ?: continue
+                marker.tag = JunctionBoxTag(box)
+                junctionBoxMarkers[box.id] = marker
+            }
+        }
+        junctionBoxMarkers.keys.filter { it !in activeIds }.forEach { id ->
+            junctionBoxMarkers.remove(id)?.remove()
+        }
+    }
+
+    private fun junctionBoxSnippet(
+        box: JunctionBoxStore.JunctionBox,
+        anchor: Pair<Double, Double>?,
+    ): String {
+        val tierLabel = tierLabel(box.tier)
+        val statusLabel = when (box.status) {
+            JunctionBoxStore.Status.ACTIVE -> getString(R.string.map_junction_status_active)
+            JunctionBoxStore.Status.PLANNED -> getString(R.string.map_junction_status_planned)
+        }
+        val distanceLine = anchor?.let { (lat, lon) ->
+            JunctionBoxStore.distanceMeters(box, lat, lon)?.let { meters ->
+                getString(R.string.map_junction_distance, meters / 1000.0)
+            }
+        } ?: getString(R.string.map_junction_distance_unknown)
+        return "$tierLabel · $statusLabel · $distanceLine"
+    }
+
+    private fun tierLabel(tier: JunctionBoxStore.Tier): String = when (tier) {
+        JunctionBoxStore.Tier.URBAN -> getString(R.string.map_junction_tier_urban)
+        JunctionBoxStore.Tier.RIDGE -> getString(R.string.map_junction_tier_ridge)
+        JunctionBoxStore.Tier.TRAILHEAD -> getString(R.string.map_junction_tier_trailhead)
+    }
+
+    private fun junctionBoxMarkerIcon(tier: JunctionBoxStore.Tier): BitmapDescriptor {
+        junctionBoxIcons[tier]?.let { return it }
+        val color = when (tier) {
+            JunctionBoxStore.Tier.URBAN -> ContextCompat.getColor(this, R.color.purple_500)
+            JunctionBoxStore.Tier.RIDGE -> ContextCompat.getColor(this, R.color.mesh_amber)
+            JunctionBoxStore.Tier.TRAILHEAD -> ContextCompat.getColor(this, R.color.mesh_teal)
+        }
+        val drawable = ContextCompat.getDrawable(this, R.drawable.ic_map_junction_box)?.mutate()
+            ?: return BitmapDescriptorFactory.defaultMarker(BitmapDescriptorFactory.HUE_ORANGE).also {
+                junctionBoxIcons[tier] = it
+            }
+        DrawableCompat.setTintMode(drawable, PorterDuff.Mode.SRC_IN)
+        DrawableCompat.setTint(drawable, color)
+        val size = (resources.displayMetrics.density * 36).toInt().coerceAtLeast(32)
+        val bitmap = Bitmap.createBitmap(size, size, Bitmap.Config.ARGB_8888)
+        val canvas = Canvas(bitmap)
+        drawable.setBounds(0, 0, size, size)
+        drawable.draw(canvas)
+        return BitmapDescriptorFactory.fromBitmap(bitmap).also { junctionBoxIcons[tier] = it }
+    }
+
+    private fun showJunctionBoxActions(box: JunctionBoxStore.JunctionBox) {
+        val anchor = userLocationAnchor()
+        val message = buildString {
+            append(tierLabel(box.tier))
+            append(" · ")
+            append(
+                when (box.status) {
+                    JunctionBoxStore.Status.ACTIVE -> getString(R.string.map_junction_status_active)
+                    JunctionBoxStore.Status.PLANNED -> getString(R.string.map_junction_status_planned)
+                },
+            )
+            append('\n')
+            anchor?.let { (lat, lon) ->
+                JunctionBoxStore.distanceMeters(box, lat, lon)?.let { meters ->
+                    append(getString(R.string.map_junction_distance, meters / 1000.0))
+                    append('\n')
+                }
+            } ?: run {
+                append(getString(R.string.map_junction_distance_unknown))
+                append('\n')
+            }
+            if (box.notes.isNotBlank()) {
+                append(box.notes)
+            }
+        }.trim()
+        AlertDialog.Builder(this)
+            .setTitle(box.name)
+            .setMessage(message)
+            .setPositiveButton(R.string.map_navigate_here) { _, _ ->
+                MapsHelper.navigateTo(this, box.lat, box.lon)
+            }
+            .setNeutralButton(R.string.map_open_system) { _, _ ->
+                MapsHelper.openInGoogleMaps(this, box.lat, box.lon, box.name)
+            }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun showJunctionLegend() {
+        AlertDialog.Builder(this)
+            .setTitle(R.string.map_junction_legend_title)
+            .setMessage(R.string.map_junction_legend_body)
+            .setPositiveButton(android.R.string.ok, null)
+            .show()
+    }
+
+    private fun showNearestJunction() {
+        val anchor = userLocationAnchor()
+        if (anchor == null) {
+            Toast.makeText(this, R.string.map_no_location, Toast.LENGTH_SHORT).show()
+            return
+        }
+        val nearest = JunctionBoxStore.findNearest(anchor.first, anchor.second) ?: return
+        highlightedJunctionId = nearest.id
+        googleMap?.let { map ->
+            refreshJunctionBoxMarkers(map)
+            map.animateCamera(CameraUpdateFactory.newLatLngZoom(LatLng(nearest.lat, nearest.lon), 13f))
+        }
+        Toast.makeText(this, getString(R.string.map_junction_nearest_toast, nearest.name), Toast.LENGTH_SHORT).show()
+        showJunctionBoxActions(nearest)
     }
 
     private fun refreshEmergencyFacilityMarkers(map: GoogleMap) {
@@ -509,6 +669,8 @@ class MapActivity : AppCompatActivity(), MeshService.MeshCallback, OnMapReadyCal
     private data class FeedMarkerTag(val kind: MapPinKind, val body: String)
 
     private data class EmergencyFacilityTag(val facility: EmergencyPlacesCache.Facility)
+
+    private data class JunctionBoxTag(val box: JunctionBoxStore.JunctionBox)
 
     companion object {
         private const val PREFS_MAP = "map_prefs"

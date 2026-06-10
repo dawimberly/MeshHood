@@ -173,10 +173,22 @@
     <string name="map_search_shelter">Shelter</string>
     <string name="map_search_pharmacy">Pharmacy</string>
     <string name="map_pin_actions_title">%1$s</string>
-    <string name="map_tile_hint">Blue cross pins are nearby hospitals, pharmacies, and fire/EMS from Google Places. Red/green pins are live mesh alerts and neighbors. Tile cache is automatic; offline download is a separate step in Google Maps.</string>
+    <string name="map_tile_hint">Tower pins are planned LoRa junction boxes (purple urban, amber ridge, teal trailhead). Blue cross pins are nearby hospitals, pharmacies, and fire/EMS. Red/green pins are live mesh alerts and neighbors.</string>
+    <string name="map_junction_chip">Junction boxes (%1$d)</string>
+    <string name="map_junction_nearest">Nearest junction box</string>
+    <string name="map_junction_tier_urban">Urban gateway</string>
+    <string name="map_junction_tier_ridge">Ridge backbone</string>
+    <string name="map_junction_tier_trailhead">Trailhead relay</string>
+    <string name="map_junction_status_active">Active</string>
+    <string name="map_junction_status_planned">Planned</string>
+    <string name="map_junction_distance">%1$.1f km away</string>
+    <string name="map_junction_distance_unknown">Distance unavailable (no GPS)</string>
+    <string name="map_junction_legend_title">Junction box pins</string>
+    <string name="map_junction_legend_body">Purple = urban gateway · Amber = ridge backbone · Teal = trailhead relay. These mark strategic LoRa relay sites for SB County mesh.</string>
+    <string name="map_junction_nearest_toast">Nearest: %1$s</string>
     <string name="menu_offline_maps_guide">Offline maps guide</string>
     <string name="offline_maps_card_title">Download offline maps (Google Maps app)</string>
-    <string name="offline_maps_card_body">This card is for saving map tiles in the Google Maps app before an outage. MeshHood already shows live mesh pins and nearby emergency facilities on the map above — offline download is an extra step in Google Maps for turn-by-turn without cell data.</string>
+    <string name="offline_maps_card_body">This card is for saving map tiles in the Google Maps app before an outage. MeshHood shows live mesh pins, junction box relay sites (tower pins), and nearby emergency facilities on the map above — offline download is an extra step in Google Maps for turn-by-turn without cell data.</string>
     <string name="offline_maps_card_action">Open offline maps help</string>
     <string name="offline_maps_card_dismiss_cd">Dismiss offline maps tip</string>
     <string name="offline_maps_open_toast">In Google Maps: Profile → Offline maps → Select your own map to download this area.</string>

@@ -112,6 +112,34 @@
             android:orientation="horizontal">
 
             <com.google.android.material.button.MaterialButton
+                android:id="@+id/junctionBoxesChip"
+                style="@style/Widget.MeshHood.Chip"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginEnd="@dimen/spacing_xs"
+                android:text="Junction boxes"
+                app:icon="@drawable/ic_map_junction_box"
+                app:iconGravity="textStart"
+                app:iconTint="@color/mesh_amber" />
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/nearestJunctionButton"
+                style="@style/Widget.MeshHood.Chip"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:text="@string/map_junction_nearest"
+                app:icon="@drawable/ic_nav_map"
+                app:iconGravity="textStart" />
+        </LinearLayout>
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="@dimen/spacing_xs"
+            android:orientation="horizontal">
+
+            <com.google.android.material.button.MaterialButton
                 android:id="@+id/searchNearbyButton"
                 style="@style/Widget.MeshHood.Chip"
                 android:layout_width="0dp"
