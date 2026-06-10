@@ -180,6 +180,7 @@ All Kotlin sources live in a **flat** `app/src/main/java/com/meshhood/` package 
 | [docs/UI-DESIGN.md](docs/UI-DESIGN.md) | Dark utilitarian UI direction (Nextdoor warmth + mesh) |
 | [docs/PITCH.md](docs/PITCH.md) | Investor/partner talking points |
 | [docs/PATENT-BRIEF.md](docs/PATENT-BRIEF.md) | Provisional patent discussion brief |
+| [docs/LORA-DONGLE-PROMPT.md](docs/LORA-DONGLE-PROMPT.md) | Copy-paste prompt for external LoRa dongle integration analysis |
 
 ---
 
